@@ -1,0 +1,18 @@
+CEF:0|Microsoft|Windows|10.0|4624|Successful Logon|3|src=10.0.0.50 dst=10.0.0.5 duser=CORP\\jsmith act=Logon cs1=Interactive cs1Label=LogonType cs2=Kerberos cs2Label=AuthPackage msg=Successful interactive logon
+CEF:0|Microsoft|Windows|10.0|4625|Failed Logon|5|src=192.168.1.50 dst=10.0.0.5 duser=administrator act=FailedLogon cs1=Network cs1Label=LogonType cs2=NTLM cs2Label=AuthPackage msg=Failed logon attempt from external IP
+CEF:0|Microsoft|Windows|10.0|4720|Account Created|4|src=10.0.0.10 duser=newuser suser=CORP\\admin act=AccountCreated msg=New user account created in Active Directory
+CEF:0|Microsoft|Windows|10.0|4726|Account Deleted|5|src=10.0.0.10 duser=terminated_user suser=CORP\\admin act=AccountDeleted msg=User account deleted from Active Directory
+CEF:0|Microsoft|Windows|10.0|4728|Member Added to Security Group|6|duser=CORP\\jsmith suser=CORP\\admin act=GroupMemberAdded cs1=Domain Admins cs1Label=GroupName msg=User added to Domain Admins group
+CEF:0|Microsoft|Windows|10.0|4648|Explicit Credentials Logon|5|src=10.0.0.50 dst=10.0.0.200 duser=CORP\\service_acct suser=CORP\\admin act=ExplicitLogon msg=Logon using explicit credentials (runas)
+CEF:0|Microsoft|Windows|10.0|1102|Audit Log Cleared|8|src=10.0.0.60 suser=CORP\\suspicious act=AuditLogCleared msg=Security audit log was cleared
+CEF:0|Microsoft|Windows|10.0|4688|Process Created|2|src=10.0.0.70 duser=CORP\\user01 act=ProcessCreated deviceProcessName=notepad.exe cs1=C:\\Windows\\System32\\notepad.exe cs1Label=CommandLine msg=New process created
+CEF:0|Microsoft|Windows|10.0|4688|Process Created|7|src=10.0.0.80 duser=SYSTEM act=ProcessCreated deviceProcessName=powershell.exe cs1=powershell.exe -enc SQBFAFgAKABOAGUAdwAtAE8AYgBqAGU cs1Label=CommandLine msg=Encoded PowerShell command executed
+CEF:0|Microsoft|Windows|10.0|7045|Service Installed|6|src=10.0.0.90 duser=SYSTEM act=ServiceInstalled cs1=SuspiciousSvc cs1Label=ServiceName cs2=C:\\temp\\svc.exe cs2Label=ImagePath msg=New service installed
+CEF:0|Microsoft|Windows|10.0|4657|Registry Value Modified|5|src=10.0.0.55 duser=CORP\\user02 act=RegistryModified cs1=HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run cs1Label=RegistryKey msg=Autorun registry key modified
+CEF:0|Microsoft|Windows|10.0|4663|Object Access|3|src=10.0.0.65 duser=CORP\\analyst act=ObjectAccess fname=sensitive_data.xlsx filePath=\\\\fileserver\\share\\HR\\ msg=File access on network share
+CEF:0|Microsoft|Windows|10.0|4769|Kerberos Service Ticket|3|src=10.0.0.75 duser=CORP\\jdoe act=TGSRequest cs1=krbtgt cs1Label=ServiceName msg=Kerberos service ticket requested
+CEF:0|Microsoft|Windows|10.0|4771|Kerberos Pre-Auth Failed|5|src=192.168.1.60 duser=CORP\\admin act=KerbPreAuthFailed msg=Kerberos pre-authentication failed - possible password spray
+CEF:0|Microsoft|Windows|10.0|5156|Windows Firewall|2|src=10.0.0.40 dst=8.8.8.8 spt=49152 dpt=53 proto=UDP act=Allowed msg=Windows firewall allowed outbound DNS connection
+CEF:0|Microsoft|Windows|10.0|5157|Windows Firewall|5|src=192.168.1.70 dst=10.0.0.40 spt=54321 dpt=3389 proto=TCP act=Blocked msg=Windows firewall blocked inbound RDP connection
+CEF:0|Microsoft|Windows|10.0|4732|Member Added to Local Group|5|duser=CORP\\jsmith suser=CORP\\admin act=LocalGroupMemberAdded cs1=Administrators cs1Label=GroupName msg=User added to local Administrators group
+CEF:0|Microsoft|Windows|10.0|4697|Service Installed for Persistence|7|src=10.0.0.85 duser=SYSTEM act=ServiceInstalled cs1=MaliciousSvc cs1Label=ServiceName cs2=C:\\ProgramData\\backdoor.exe cs2Label=ImagePath msg=Suspicious service installation detected

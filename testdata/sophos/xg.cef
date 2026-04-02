@@ -1,0 +1,14 @@
+CEF:0|Sophos|XG Firewall|19.5|01|Firewall Rule Accept|2|src=10.0.0.50 dst=8.8.8.8 spt=49152 dpt=53 proto=UDP act=Accept cs1=DNS_Allow cs1Label=RuleName msg=DNS traffic allowed
+CEF:0|Sophos|XG Firewall|19.5|02|Firewall Rule Drop|6|src=192.168.1.50 dst=10.0.0.10 spt=54321 dpt=3389 proto=TCP act=Drop cs1=Block_RDP cs1Label=RuleName msg=Inbound RDP dropped
+CEF:0|Sophos|XG Firewall|19.5|03|IPS Alert|8|src=172.16.1.20 dst=10.0.0.5 spt=49200 dpt=80 proto=TCP act=Drop cs1=ET EXPLOIT Apache Struts cs1Label=SignatureName cs2=1234567 cs2Label=SignatureID msg=IPS blocked exploit attempt
+CEF:0|Sophos|XG Firewall|19.5|04|Web Filter Block|5|src=10.0.0.60 dst=93.184.216.34 dpt=443 proto=TCP act=Block cs1=Adult Content cs1Label=Category request=https://blocked-site.example.com msg=URL blocked by web filter
+CEF:0|Sophos|XG Firewall|19.5|05|ATP Detection|9|src=10.0.0.70 dst=172.16.1.10 dpt=443 proto=TCP act=Drop cs1=C2 cs1Label=ThreatType cs2=Botnet cs2Label=ThreatCategory msg=Advanced threat protection blocked C2 communication
+CEF:0|Sophos|XG Firewall|19.5|06|Anti-Virus|7|src=10.0.0.80 dst=172.16.1.30 dpt=80 proto=TCP act=Block fname=malware.exe cs1=Troj/Agent-ABC cs1Label=ThreatName msg=Virus detected in HTTP download
+CEF:0|Sophos|XG Firewall|19.5|07|Sandstorm|8|src=10.0.0.90 dst=172.16.1.40 dpt=25 proto=TCP act=Block fname=suspicious.pdf cs1=Malicious cs1Label=SandstormVerdict msg=File flagged as malicious by Sandstorm sandbox
+CEF:0|Sophos|XG Firewall|19.5|08|SSL/TLS Inspection|4|src=10.0.0.55 dst=151.101.1.69 dpt=443 proto=TCP act=Decrypt cs1=SSL_Inspect cs1Label=PolicyName msg=HTTPS traffic decrypted for inspection
+CEF:0|Sophos|Intercept X|2.0|IX001|Exploit Prevented|9|src=10.0.0.65 dhost=WORKSTATION01 act=Blocked deviceProcessName=iexplore.exe cs1=HeapSpray cs1Label=ExploitType msg=Exploit attempt prevented by Intercept X
+CEF:0|Sophos|Intercept X|2.0|IX002|Ransomware Blocked|10|src=10.0.0.75 dhost=WORKSTATION02 duser=CORP\\user01 act=Blocked deviceProcessName=cryptolocker.exe cs1=CryptoGuard cs1Label=DetectionEngine msg=Ransomware encryption activity blocked by CryptoGuard
+CEF:0|Sophos|Intercept X|2.0|IX003|Malware Cleaned|7|src=10.0.0.85 dhost=WORKSTATION03 act=Cleaned fname=trojan.dll cs1=ML/PE-A cs1Label=ThreatName cs2=Deep Learning cs2Label=Engine msg=Malware detected by deep learning engine and cleaned
+CEF:0|Sophos|Central|3.0|SC001|Synchronized Security|6|src=10.0.0.95 dhost=ENDPOINT01 act=Heartbeat cs1=Green cs1Label=HealthStatus msg=Endpoint health status reported to Sophos Central
+CEF:0|Sophos|XG Firewall|19.5|09|Email Protection|6|src=172.16.1.50 dst=10.0.0.5 dpt=25 proto=TCP act=Quarantine suser=phisher@evil.com duser=target@corp.com fname=phish.html msg=Phishing email quarantined
+CEF:0|Sophos|XG Firewall|19.5|10|Wireless Protection|4|src=10.0.0.100 act=Alert cs1=Rogue AP cs1Label=ThreatType cs2=00:11:22:33:44:55 cs2Label=APMAC msg=Rogue wireless access point detected

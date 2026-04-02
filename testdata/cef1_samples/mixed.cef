@@ -1,0 +1,68 @@
+CEF:1|Security|ThreatManager|1.0|100|worm successfully stopped|10|src=10.0.0.1 dst=2.1.2.2 spt=1232
+CEF:1|ArcSight|ESM|7.6|rule:5|High Priority Alert|9|src=172.16.0.5 dst=10.0.0.1 act=Alert msg=Multiple failed login attempts detected
+CEF:1|Check Point|NGFW|R81.20|25001|Drop|7|src=10.0.0.50 dst=192.168.1.1 spt=12345 dpt=445 proto=TCP act=Drop
+CEF:1|Palo Alto Networks|PAN-OS|11.0|THREAT|vulnerability|8|src=192.168.1.1 dst=10.0.0.5 spt=54321 dpt=443 proto=TCP act=reset-both
+CEF:1|Fortinet|FortiGate|7.4.0|0419016384|utm:webfilter blocked|7|src=10.0.0.100 dst=93.184.216.34 spt=55000 dpt=443 proto=TCP act=blocked
+CEF:1|CrowdStrike|FalconHost|1.0|DetectionSummaryEvent|Detection Summary|9|externalId=ldt:abc123 src=10.0.0.50 duser=jsmith act=detected
+CEF:1|SentinelOne|Singularity|4.0|THREAT|Ransomware|10|src=10.0.0.70 dhost=FILESERVER act=Rollback msg=Ransomware detected and rolled back
+CEF:1|Trend Micro|Deep Security|20.0|1000000|Intrusion Prevention|8|src=192.168.1.50 dst=10.0.0.10 spt=49152 dpt=80 proto=TCP act=Block
+CEF:1|McAfee|ePO|5.10|18054|Threat Detected|8|src=10.0.0.50 dhost=WORKSTATION01 act=Quarantine fname=malware.exe
+CEF:1|Cisco|ASA|9.16|430003|ACL deny|7|src=192.168.1.1 dst=10.0.0.1 spt=12345 dpt=443 proto=TCP act=Deny
+CEF:1|Cisco|Firepower|7.2|1:2100498:7|Intrusion Event|6|src=192.168.1.50 dst=10.0.0.10 spt=80 dpt=49200 proto=TCP act=Alerted
+CEF:1|Symantec|Endpoint Protection|14.3|Virus Found|EICAR Test File|8|src=10.0.0.50 dhost=WORKSTATION01 act=Quarantine fname=eicar.com
+CEF:1|Carbon Black|CB Cloud|3.0|REPUTATION|Malware Detected|8|src=10.0.0.90 dhost=ENDPOINT01 act=Terminate deviceProcessName=ransomware.exe
+CEF:1|Sophos|XG Firewall|19.5|05|ATP Detection|9|src=10.0.0.70 dst=172.16.1.10 dpt=443 proto=TCP act=Drop cs1=C2 cs1Label=ThreatType
+CEF:1|Zscaler|NSSWeblog|6.0|WEB002|Transaction Blocked|6|src=10.0.0.60 dst=93.184.216.34 dpt=443 proto=TCP act=Blocked duser=user@corp.com
+CEF:1|F5|BIG-IP ASM|16.1|200001|SQL Injection|8|src=192.168.1.50 dst=10.0.0.10 spt=49152 dpt=443 proto=TCP act=Blocked
+CEF:1|Juniper|SRX|21.4|IDP_ATTACK_LOG_EVENT|IPS Attack|8|src=192.168.1.100 dst=10.0.0.5 spt=49300 dpt=80 proto=TCP act=Drop
+CEF:1|Imperva Inc.|SecureSphere|14.7|SQL Injection|SQL Injection Attempt|8|src=192.168.1.50 dst=10.0.0.10 spt=49152 dpt=443 proto=TCP act=blocked
+CEF:1|FireEye|HX|5.0|Malware Alert|Malware Detected|8|dhost=WORKSTATION02 dst=10.0.0.50 act=Quarantine fname=backdoor.exe
+CEF:1|FireEye|NX|10.0|NX001|Network Alert|8|src=192.168.1.50 dst=10.0.0.10 spt=49152 dpt=443 proto=TCP act=Alert cs1=Callback cs1Label=AlertType
+CEF:1|Microsoft|ATA|1.9.0.0|PassTheHashSuspiciousActivity|Identity theft using Pass-the-Hash|10|app=Ntlm suser=admin msg=admin hash was stolen
+CEF:1|Microsoft|Windows|10.0|4624|Successful Logon|3|src=10.0.0.50 dst=10.0.0.5 duser=CORP\\jsmith act=Logon
+CEF:1|Microsoft|Windows|10.0|4625|Failed Logon|5|src=192.168.1.50 dst=10.0.0.5 duser=administrator act=FailedLogon
+CEF:1|Microsoft|Windows|10.0|4688|Process Created|7|src=10.0.0.80 duser=SYSTEM act=ProcessCreated deviceProcessName=powershell.exe
+CEF:1|CyberArk|PTA|15.0|1|Suspected credentials theft|8|suser=mike@prod1.domain.com src=10.0.0.50 duser=andy@dev1.domain.com dst=10.0.0.60
+CEF:1|Darktrace|Enterprise|6.0|DT001|Anomalous Connection|7|src=10.0.0.50 dst=172.16.1.10 spt=49152 dpt=443 proto=TCP act=Alert cs1=100 cs1Label=AnomalyScore
+CEF:1|Vectra|Cognito Detect|7.0|VEC001|Command and Control|9|src=10.0.0.50 dst=172.16.1.10 spt=49152 dpt=443 proto=TCP act=Alert cn1=98 cn1Label=ThreatScore
+CEF:1|WatchGuard|Firebox|12.10|IPS001|Intrusion Detection|8|src=172.16.1.20 dst=10.0.0.5 spt=49200 dpt=80 proto=TCP act=Drop
+CEF:1|Barracuda|WAF|12.0|WEB001|SQL Injection Blocked|8|src=192.168.1.50 dst=10.0.0.10 spt=49152 dpt=443 proto=TCP act=Block
+CEF:1|Proofpoint|TAP|2.0|TAP001|Malicious Email Blocked|8|src=172.16.1.50 dst=10.0.0.5 dpt=25 proto=TCP act=Blocked suser=attacker@evil.com duser=ceo@corp.com
+CEF:1|Qualys|VMDR|10.0|VULN001|Vulnerability Detected|8|dst=10.0.0.50 dhost=SERVER01 act=Detected cs1=CVE-2021-44228 cs1Label=CVE cn1=10.0 cn1Label=CVSSScore
+CEF:1|Rapid7|InsightIDR|4.0|IDR001|Lateral Movement|8|src=10.0.0.50 dst=10.0.0.51 spt=49152 dpt=445 proto=TCP act=Alert duser=CORP\\admin
+CEF:1|AWS|GuardDuty|2.0|Recon:EC2/PortProbeUnprotectedPort|Port Probe|6|src=192.168.1.50 dst=10.0.0.10 dpt=22 proto=TCP act=Alert cs1=us-east-1 cs1Label=Region
+CEF:1|Bitdefender|GravityZone|6.40|AV001|Malware Detected|8|src=10.0.0.50 dhost=WORKSTATION01 act=Disinfected fname=trojan.exe
+CEF:1|Splunk|ES|7.3|ES001|Notable Event|6|src=10.0.0.80 dst=172.16.1.20 act=Alert cs1=Network_Anomaly cs1Label=CorrelationSearch
+CEF:1|Forcepoint|NGFW|6.10|1003|IPS Alert|8|src=172.16.1.20 dst=10.0.0.5 spt=49200 dpt=80 proto=TCP act=Block
+CEF:1|Okta|SSO|2023.1|user.session.start|User Login|3|src=192.168.1.100 duser=admin@corp.com act=SUCCESS cs1=MFA cs1Label=AuthFactor msg=Successful MFA login
+CEF:1|Okta|SSO|2023.1|user.session.start|User Login Failed|5|src=192.168.1.200 duser=user@corp.com act=FAILURE cs1=PASSWORD cs1Label=AuthFactor msg=Invalid credentials
+CEF:1|Okta|SSO|2023.1|user.account.lock|Account Locked|7|duser=jsmith@corp.com act=LOCKOUT msg=Account locked after 5 failed attempts cn1=5 cn1Label=FailedAttempts
+CEF:1|Cloudflare|WAF|4.0|CF001|Managed Rule Block|7|src=192.168.1.50 dst=10.0.0.10 dpt=443 proto=TCP act=Block cs1=100001 cs1Label=RuleID request=https://example.com/api
+CEF:1|Cloudflare|WAF|4.0|CF002|Rate Limiting|5|src=172.16.1.20 dst=10.0.0.10 dpt=443 proto=TCP act=Block cn1=1000 cn1Label=RequestRate msg=Rate limit exceeded
+CEF:1|Cloudflare|WAF|4.0|CF003|DDoS Mitigation|9|src=10.0.0.0 dst=10.0.0.10 dpt=443 act=Mitigate cn1=500000 cn1Label=RequestsPerSecond msg=L7 DDoS attack mitigated
+CEF:1|Akamai|Kona|3.0|AK001|Web Attack|7|src=192.168.1.100 dst=10.0.0.10 dpt=443 proto=TCP act=Deny cs1=CMD Injection cs1Label=AttackType request=/cgi-bin/test.cgi
+CEF:1|Akamai|Kona|3.0|AK002|Bot Manager|5|src=172.16.1.30 dst=10.0.0.10 dpt=443 proto=TCP act=Monitor requestClientApplication=python-requests/2.28 cs1=Bad Bot cs1Label=BotCategory
+CEF:1|IBM|QRadar|7.5|QR001|Offense Created|8|src=10.0.0.50 dst=172.16.1.10 act=Alert cs1=High cs1Label=Severity cn1=150 cn1Label=Magnitude msg=Multiple correlated events indicate compromise
+CEF:1|IBM|QRadar|7.5|QR002|Anomaly Detection|6|src=10.0.0.60 act=Alert cs1=Behavioral cs1Label=RuleType msg=User behavior significantly deviates from baseline
+CEF:1|LogRhythm|SIEM|7.10|LR001|SmartResponse|5|src=10.0.0.70 act=Automated cs1=Block_IP cs1Label=ActionType msg=SmartResponse automatically blocked suspicious IP
+CEF:1|LogRhythm|SIEM|7.10|LR002|AI Engine Alert|7|src=10.0.0.80 dst=192.168.1.50 act=Alert cs1=Exfiltration cs1Label=AlertType msg=AI Engine detected data exfiltration pattern
+CEF:1|Elastic|SIEM|8.11|EL001|Detection Rule|7|src=10.0.0.90 dhost=SERVER01 act=Alert cs1=Persistence cs1Label=MITRETactic cs2=T1053.005 cs2Label=MITRETechnique msg=Scheduled task created for persistence
+CEF:1|Elastic|SIEM|8.11|EL002|ML Anomaly|6|src=10.0.0.55 duser=admin act=Alert cs1=Unusual Login cs1Label=MLJob msg=Machine learning detected anomalous login time
+CEF:1|Sumo Logic|Cloud SIEM|3.0|SL001|Signal|7|src=10.0.0.65 dst=172.16.1.50 act=Alert cs1=C2_Communication cs1Label=SignalName msg=Outbound traffic to known threat actor infrastructure
+CEF:1|Sumo Logic|Cloud SIEM|3.0|SL002|Insight|8|src=10.0.0.75 act=Alert cs1=Compromised Host cs1Label=InsightType cn1=5 cn1Label=SignalCount msg=Multiple signals correlated into compromise insight
+CEF:1|Palo Alto Networks|Cortex XDR|3.0|XDR-003|Behavioral IOC|8|src=10.0.0.85 dhost=WORKSTATION10 act=Alert deviceProcessName=rundll32.exe cs1=T1218.011 cs1Label=MITRETechnique msg=Rundll32 used to proxy execution of malicious DLL
+CEF:1|Cisco|Umbrella|2.0|UMB002|DNS Blocked|7|src=10.0.0.95 dst=208.67.222.222 dpt=53 proto=UDP act=Block cs1=Command and Control cs1Label=Category msg=DNS resolution blocked for C2 domain
+CEF:1|Microsoft|Defender for Endpoint|2.0|MDE001|Alert|8|src=10.0.0.45 dhost=LAPTOP01 duser=CORP\\user03 act=Alert deviceProcessName=regsvr32.exe cs1=Defense Evasion cs1Label=Category msg=Regsvr32 used to execute malicious scriptlet
+CEF:1|Microsoft|Defender for Cloud|2.0|MDC001|Security Alert|7|dst=10.0.0.110 act=Alert cs1=Azure cs1Label=CloudProvider cs2=VM cs2Label=ResourceType msg=Suspicious authentication activity on virtual machine
+CEF:1|Google|Chronicle|1.0|GC001|Detection|7|src=10.0.0.120 dst=192.168.1.150 act=Alert cs1=UDM cs1Label=Format cs2=MITRE cs2Label=Framework msg=Suspicious process execution chain detected
+CEF:1|Netskope|CASB|1.0|NS001|DLP Violation|7|src=10.0.0.130 duser=user05@corp.com act=Block cs1=PCI cs1Label=DLPProfile cs2=Box cs2Label=CloudApp msg=PCI data upload to unsanctioned cloud app blocked
+CEF:1|Netskope|CASB|1.0|NS002|Threat Detected|8|src=10.0.0.140 duser=user06@corp.com act=Quarantine fname=malware.docx cs1=Malware cs1Label=ThreatType cs2=OneDrive cs2Label=CloudApp msg=Malware detected in cloud storage
+CEF:1|Mimecast|Email Security|3.0|MM001|Impersonation|7|src=172.16.1.90 dst=10.0.0.5 dpt=25 proto=TCP act=Hold suser=fake-ceo@lookalike.com duser=cfo@corp.com cs1=BEC cs1Label=ThreatType msg=CEO impersonation email held for review
+CEF:1|Mimecast|Email Security|3.0|MM002|Targeted Threat|8|src=172.16.1.100 dst=10.0.0.5 dpt=25 proto=TCP act=Block suser=apt@threat.com duser=executive@corp.com fname=proposal.xlsm cs1=Targeted cs1Label=Classification msg=Targeted threat with weaponized spreadsheet
+CEF:1|Varonis|DatAdvantage|8.0|VA001|Sensitive Data Access|7|src=10.0.0.150 duser=CORP\\intern act=Alert fname=HR_Salaries.xlsx filePath=\\\\fileserver\\HR\\ msg=Intern accessing sensitive HR data outside normal pattern
+CEF:1|Varonis|DatAdvantage|8.0|VA002|Permission Change|6|src=10.0.0.160 suser=CORP\\admin duser=CORP\\contractor act=Alert msg=Broad permissions granted to contractor on sensitive share
+CEF:1|Tenable|Nessus|10.0|TN001|Critical Vulnerability|9|dst=10.0.0.170 dhost=EXCHANGE01 act=Detected cs1=CVE-2023-36884 cs1Label=CVE cn1=9.8 cn1Label=CVSSScore msg=Critical Office and Windows HTML RCE vulnerability
+CEF:1|Tenable|Nessus|10.0|TN002|Compliance Failure|5|dst=10.0.0.180 dhost=SERVER05 act=NonCompliant cs1=CIS cs1Label=Framework cs2=1.1.1 cs2Label=Control msg=System does not enforce password history
+CEF:1|Wiz|Cloud Security|1.0|WIZ001|Toxic Combination|9|dst=10.0.0.190 act=Alert cs1=AWS cs1Label=CloudProvider cs2=EC2 cs2Label=ResourceType msg=Public-facing EC2 with admin role and known CVE
+CEF:1|CrowdStrike|Falcon LogScale|1.0|LS001|Log Anomaly|5|src=10.0.0.200 act=Alert cs1=Volume Spike cs1Label=AnomalyType cn1=500 cn1Label=PercentIncrease msg=500% increase in authentication failure logs
+CEF:1|Palo Alto Networks|Prisma Access|3.0|PA001|ZTNA Violation|7|src=192.168.1.250 duser=remote-worker@corp.com act=Deny cs1=PostureCheck cs1Label=Reason msg=Device posture check failed for ZTNA access

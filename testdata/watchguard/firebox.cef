@@ -1,0 +1,11 @@
+CEF:0|WatchGuard|Firebox|12.10|FW001|Firewall Allow|2|src=10.0.0.50 dst=8.8.8.8 spt=49152 dpt=53 proto=UDP act=Allow cs1=DNS-Out cs1Label=PolicyName msg=DNS traffic allowed
+CEF:0|WatchGuard|Firebox|12.10|FW002|Firewall Deny|6|src=192.168.1.50 dst=10.0.0.10 spt=54321 dpt=3389 proto=TCP act=Deny cs1=Default-Deny cs1Label=PolicyName msg=Inbound RDP denied
+CEF:0|WatchGuard|Firebox|12.10|IPS001|Intrusion Detection|8|src=172.16.1.20 dst=10.0.0.5 spt=49200 dpt=80 proto=TCP act=Drop cs1=1:2024217 cs1Label=SignatureID cs2=ET WEB_SERVER SQL Injection cs2Label=SignatureName msg=SQL injection attempt detected by IPS
+CEF:0|WatchGuard|Firebox|12.10|AV001|Gateway AntiVirus|7|src=10.0.0.60 dst=172.16.1.30 dpt=80 proto=TCP act=Block fname=dropper.exe cs1=Trojan.GenericKD cs1Label=VirusName msg=Malware blocked at gateway
+CEF:0|WatchGuard|Firebox|12.10|APT001|APT Blocker|8|src=10.0.0.70 dst=172.16.1.40 dpt=443 proto=TCP act=Drop fname=zero_day.pdf cs1=Suspicious cs1Label=Verdict cs2=High cs2Label=ThreatLevel msg=APT Blocker sandbox detected suspicious file behavior
+CEF:0|WatchGuard|Firebox|12.10|WF001|WebBlocker|5|src=10.0.0.80 dst=93.184.216.34 dpt=443 proto=TCP act=Block cs1=Gambling cs1Label=Category request=https://gambling.example.com msg=URL blocked by WebBlocker
+CEF:0|WatchGuard|Firebox|12.10|BOT001|Botnet Detection|7|src=10.0.0.90 dst=172.16.1.10 dpt=443 proto=TCP act=Block cs1=Botnet C2 cs1Label=ThreatType msg=Botnet command and control communication blocked
+CEF:0|WatchGuard|Firebox|12.10|DLP001|Data Loss Prevention|6|src=10.0.0.55 dst=74.125.195.26 dpt=25 proto=TCP act=Block duser=user01@corp.com cs1=SSN cs1Label=DLPRule fname=data.csv msg=Email with SSN pattern blocked by DLP
+CEF:0|WatchGuard|Firebox|12.10|GEO001|Geolocation Block|5|src=10.0.0.10 dst=10.0.0.10 spt=49300 dpt=443 proto=TCP act=Deny cs1=GeoBlock cs1Label=PolicyName cs2=North Korea cs2Label=Country msg=Traffic from blocked country denied
+CEF:0|WatchGuard|Firebox|12.10|VPN001|VPN Connected|3|src=192.168.1.100 dst=10.0.0.1 duser=remote@corp.com act=Connected cs1=Mobile VPN with SSL cs1Label=VPNType msg=SSL VPN connection established
+CEF:0|WatchGuard|Firebox|12.10|DNS001|DNSWatch Block|6|src=10.0.0.65 dst=8.8.8.8 dpt=53 proto=UDP act=Block cs1=Phishing cs1Label=Category msg=DNS query to known phishing domain blocked by DNSWatch

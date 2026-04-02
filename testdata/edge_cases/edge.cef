@@ -1,0 +1,51 @@
+CEF:0||||||5|
+CEF:0|V|P|1|100|N|5|msg=hello world   
+CEF:0|V|P|1|100|N|5|msg=hello\=world src=1.2.3.4
+CEF:0|V|P|1|100|N|5|filePath=C:\\Windows\\System32 src=10.0.0.1
+CEF:0|V|P|1|100|N|5|msg=first line\nsecond line\rthird src=1.2.3.4
+CEF:0|V|P|1|100|N|5|msg=contains | pipe src=1.2.3.4
+CEF:0|V|P|1|100|N|Very-High|
+CEF:0|V|P|1|100|N|Unknown|
+CEF:1|Vendor|Product|1.0|100|Name|5|
+CEF:2|Vendor|Product|1.0|100|Name|5|
+CEF:0|V|P|1|100|日本語テスト|5|msg=こんにちは世界
+CEF:0|vendor|product|1.0|100|name with \\|5|
+CEF:0|V|P|1|SIG=100|N|5|src=1.2.3.4
+CEF:0|V|P|1|SIG%100|N|5|src=1.2.3.4
+CEF:0|V|P|1|SIG#100|N|5|src=1.2.3.4
+CEF:0|V|P|1|100|N|0|
+CEF:0|V|P|1|100|N|10|
+CEF:0|V|P|1|100|N|Low|
+CEF:0|V|P|1|100|N|Medium|
+CEF:0|V|P|1|100|N|High|
+CEF:0|V|P|1|100|N|5|msg=2+2\=4 is true src=1.2.3.4
+CEF:0|V|P|1|100|N|5|msg=test\\\=value src=1.2.3.4
+CEF:0|V|P|1|100|N|5|a.b=1 c-d=2 e_f=3 g[0]=4
+CEF:0|V|P|1|100|N|5|msg=hello   src=1.2.3.4
+CEF:0|V|P|1|100|N|5|rt=1234567890000
+CEF:0|V|P|1|100|N|5|rt=Mar 19 2025 08:26:10.000 UTC
+CEF:0|V|P|1|100|N|5|msg=value with multiple   spaces   inside
+CEF:0|V|P|1|100|N|5|key.with-dash_under[0]=complex.value
+CEF:0|Vendor With Spaces|Product (v2.0)|1.0-beta|CID:100|Event Name [special]|5|src=10.0.0.1
+CEF:99|V|P|1|100|N|5|src=1.2.3.4
+CEF:0|V|P|1|100|N|5|msg=value src=10.0.0.1 dst=10.0.0.2 spt=1234 dpt=443 proto=TCP act=allow cs1=label1 cs1Label=Label cs2=label2 cs2Label=Label2
+CEF:0|V|P|1|100|N|5
+CEF:0|V|P|1|100|Name|5
+CEF:0|V|P|1|100|N|5|src=10.0.0.1 dst=10.0.0.2 spt=1234 dpt=443 proto=TCP act=allow in=1024 out=2048 msg=test event rt=1700000000000 cs1=value1 cs1Label=Custom1 cs2=value2 cs2Label=Custom2 cs3=value3 cs3Label=Custom3 cs4=value4 cs4Label=Custom4 cs5=value5 cs5Label=Custom5 cs6=value6 cs6Label=Custom6 cn1=100 cn1Label=Num1 cn2=200 cn2Label=Num2 cn3=300 cn3Label=Num3
+CEF:0|Long Vendor Name That Is Quite Long Indeed|Long Product Name For Testing Purposes|99.99.99|VERY-LONG-EVENT-ID-STRING|Very Long Event Name That Describes Something In Detail|8|src=10.0.0.1 msg=This is a very long message that contains a lot of text to test how the parser handles longer messages in the extension field
+CEF:0|V|P|1|100|N|5|src=192.168.1.1 dst=192.168.1.2 spt=80 dpt=443
+CEF:0|V|P|1|100|N|5|src=2001:0db8:85a3:0000:0000:8a2e:0370:7334
+CEF:0|V|P|1|100|N|5|src=fe80::1 dst=fe80::2
+CEF:0|V|P|1|100|N|5|msg=path is C:\\Users\\admin\\file.txt and more text
+CEF:0|V|P|1|100|N|5|msg=special chars: \\\\ \\n \\r \\= \| done
+CEF:0|V|P|1|100|N|5|fname=file with spaces.txt filePath=/path/to/directory with spaces/
+CEF:0|V|P|1|100|N|5|request=https://example.com/path?query\=value&other\=test
+CEF:0|V|P|1|100|N|5|msg=event at 2024-01-15T10:30:00Z on server-01
+CEF:0|V|P|1|100|Name|5|deviceCustomDate1=1700000000000 deviceCustomDate1Label=DetectionTime deviceCustomDate2=1700000100000 deviceCustomDate2Label=ResponseTime
+CEF:0|V|P|1|100|N|5|cfp1=3.14159 cfp1Label=Pi cfp2=2.71828 cfp2Label=Euler
+CEF:0|V|P|1|100|N|5|c6a1=2001:db8::1 c6a1Label=IPv6Src c6a2=2001:db8::2 c6a2Label=IPv6Dst
+CEF:0|V|P|1|100|N|5|flexString1=flexible value 1 flexString1Label=FlexLabel1 flexString2=flexible value 2 flexString2Label=FlexLabel2
+CEF:0|V|P|1|100|N|5|externalId=EXT-123456 deviceExternalId=DEV-789012
+CEF:0|V|P|1|100|N|5|duser=DOMAIN\\user suser=DOMAIN\\admin spriv=Administrator dpriv=User
+CEF:0|V|P|1|100|N|5|agt=10.0.0.1 ahost=agent01.corp.local aid=AGT001 at=Sensor av=1.0
+CEF:0|V|P|1|100|N|5|outcome=Success reason=Authorized requestMethod=POST requestContext=https://referrer.example.com

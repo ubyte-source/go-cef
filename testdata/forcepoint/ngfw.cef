@@ -1,0 +1,14 @@
+CEF:0|Forcepoint|NGFW|6.10|1001|Connection Allowed|2|src=10.0.0.50 dst=8.8.8.8 spt=49152 dpt=53 proto=UDP act=Allow cs1=DNS_Allow cs1Label=RuleName msg=DNS traffic allowed by policy
+CEF:0|Forcepoint|NGFW|6.10|1002|Connection Refused|6|src=192.168.1.50 dst=10.0.0.10 spt=54321 dpt=445 proto=TCP act=Refuse cs1=Block_SMB cs1Label=RuleName msg=Inbound SMB connection refused
+CEF:0|Forcepoint|NGFW|6.10|1003|IPS Alert|8|src=172.16.1.20 dst=10.0.0.5 spt=49200 dpt=80 proto=TCP act=Block cs1=HTTP_SQLi cs1Label=AttackName msg=SQL injection in HTTP request blocked by IPS
+CEF:0|Forcepoint|NGFW|6.10|1004|Anti-Malware|7|src=10.0.0.60 dst=172.16.1.30 dpt=443 proto=TCP act=Block fname=dropper.exe cs1=Trojan.Generic cs1Label=MalwareName msg=Malware download blocked
+CEF:0|Forcepoint|NGFW|6.10|1005|VPN Tunnel|3|src=192.168.1.100 dst=10.0.0.1 proto=ESP act=Established cs1=Remote_Office cs1Label=VPNProfile msg=Site-to-site VPN tunnel established
+CEF:0|Forcepoint|NGFW|6.10|1006|Application Control|5|src=10.0.0.70 dst=157.240.1.35 spt=49300 dpt=443 proto=TCP act=Block cs1=Social_Media cs1Label=AppCategory cs2=Facebook cs2Label=Application msg=Social media access blocked by policy
+CEF:0|Forcepoint|DLP|8.8|DLP001|Data Loss Prevention|7|src=10.0.0.80 dst=74.125.195.26 dpt=443 proto=TCP act=Block duser=CORP\\finance01 cs1=SSN_Detection cs1Label=DLPPolicy fname=employee_list.xlsx msg=File containing SSNs blocked from upload
+CEF:0|Forcepoint|Web Security|8.5|WS001|URL Blocked|5|src=10.0.0.40 dst=93.184.216.34 dpt=443 proto=TCP act=Block cs1=Malware cs1Label=Category request=https://malicious-site.example.com msg=URL categorized as malware distribution
+CEF:0|Forcepoint|Email Security|8.5|ES001|Phishing Blocked|7|src=172.16.1.40 dst=10.0.0.5 dpt=25 proto=TCP act=Quarantine suser=attacker@phish.com duser=ceo@corp.com msg=Spear phishing email targeting executive
+CEF:0|Forcepoint|NGFW|6.10|1007|SSL Inspection|4|src=10.0.0.55 dst=151.101.1.69 spt=49400 dpt=443 proto=TCP act=Inspect cs1=SSL_Inspect cs1Label=PolicyName msg=SSL traffic decrypted for inspection
+CEF:0|Forcepoint|NGFW|6.10|1008|Deep Packet Inspection|6|src=10.0.0.65 dst=172.16.1.50 spt=49500 dpt=8080 proto=TCP act=Block cs1=Proxy_Evasion cs1Label=DetectionType msg=Encrypted proxy tunnel detected and blocked
+CEF:0|Forcepoint|CASB|3.0|CASB001|Shadow IT|5|src=10.0.0.75 duser=user@corp.com act=Alert cs1=Unsanctioned_App cs1Label=Category cs2=Dropbox cs2Label=Application msg=Unsanctioned cloud application usage detected
+CEF:0|Forcepoint|NGFW|6.10|1009|GeoIP Block|5|src=10.0.0.10 dst=10.0.0.10 spt=49600 dpt=443 proto=TCP act=Block cs1=GeoBlock_Policy cs1Label=RuleName cs2=CN cs2Label=SourceCountry msg=Connection from blocked country
+CEF:0|Forcepoint|Insider Threat|8.0|IT001|Risk Indicator|7|src=10.0.0.85 duser=CORP\\contractor act=Alert cs1=USB_Exfil cs1Label=Indicator msg=Large volume of files copied to removable media cn1=500 cn1Label=FilesCopied

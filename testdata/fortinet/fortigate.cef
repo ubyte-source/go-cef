@@ -1,0 +1,19 @@
+CEF:0|Fortinet|FortiGate|7.4.0|0419016384|utm:webfilter blocked|7|src=10.0.0.100 dst=93.184.216.34 spt=55000 dpt=443 proto=TCP act=blocked FortinetFortiGatelogid=0419016384 FortinetFortiGatepolicyid=5 msg=URL belongs to a denied category
+CEF:0|Fortinet|FortiGate|7.4.0|0000000013|traffic forward allowed|3|src=10.0.0.50 dst=8.8.8.8 spt=45678 dpt=53 proto=UDP act=accept in=120 out=340 FortinetFortiGatepolicyid=1
+CEF:0|Fortinet|FortiGate|7.4.0|0100032400|ips:signature detected|8|src=192.168.1.5 dst=10.0.0.10 spt=54321 dpt=80 proto=TCP act=dropped FortinetFortiGateattack=HTTP.URI.SQL.Injection msg=IPS signature match on SQL injection
+CEF:0|Fortinet|FortiSandbox|4.4|3000001|sandbox:malware detected|9|src=10.0.0.50 dst=172.16.1.1 act=quarantine fname=suspicious.doc msg=File submitted to sandbox returned malicious verdict
+CEF:0|Fortinet|FortiGate|7.4.0|0000000011|traffic forward denied|6|src=10.0.0.80 dst=172.217.14.110 spt=49152 dpt=80 proto=TCP act=deny FortinetFortiGatepolicyid=0 msg=Implicit deny by policy
+CEF:0|Fortinet|FortiGate|7.4.0|0100032401|ips:anomaly detected|7|src=192.168.1.50 dst=10.0.0.5 spt=1 dpt=0 proto=ICMP act=detected FortinetFortiGateattack=icmp_flood msg=ICMP flood anomaly detected cn1=500 cn1Label=PacketsPerSecond
+CEF:0|Fortinet|FortiGate|7.4.0|0200040705|virus:infected blocked|8|src=10.0.0.60 dst=172.16.1.20 spt=52000 dpt=25 proto=TCP act=blocked fname=malware.exe fsize=245760 FortinetFortiGatevirus=W32/Kryptik.ABCD msg=Virus detected in email attachment
+CEF:0|Fortinet|FortiGate|7.4.0|0000000020|traffic vpn|3|src=192.168.1.200 dst=10.0.0.1 proto=ESP act=tunnel-up FortinetFortiGatevpntunnel=ipsec-remote msg=IPsec VPN tunnel established
+CEF:0|Fortinet|FortiGate|7.4.0|0419016385|utm:webfilter allowed|2|src=10.0.0.40 dst=151.101.1.69 spt=49200 dpt=443 proto=TCP act=passthrough FortinetFortiGatepolicyid=3 request=https://www.reddit.com msg=URL allowed by web filter policy
+CEF:0|Fortinet|FortiGate|7.4.0|0302013400|app-ctrl:signature detected|5|src=10.0.0.70 dst=13.107.42.14 spt=50000 dpt=443 proto=TCP act=pass FortinetFortiGateapp=Microsoft.Teams FortinetFortiGateappcat=Collaboration msg=Application control allowed Microsoft Teams
+CEF:0|Fortinet|FortiGate|7.4.0|0315012544|ssl:certificate-error|6|src=10.0.0.55 dst=172.16.1.30 spt=49300 dpt=443 proto=TCP act=blocked msg=SSL certificate validation failed - self-signed certificate
+CEF:0|Fortinet|FortiGate|7.4.0|0000000014|traffic forward allowed|2|src=10.0.0.10 dst=10.0.0.20 spt=445 dpt=445 proto=TCP act=accept in=2048 out=4096 FortinetFortiGatepolicyid=10 FortinetFortiGateduration=300
+CEF:0|Fortinet|FortiGate|7.4.0|0100040704|ips:botnet detected|9|src=10.0.0.90 dst=198.18.0.1 spt=49400 dpt=443 proto=TCP act=dropped FortinetFortiGateattack=Botnet.Communication msg=Botnet C2 communication detected and dropped
+CEF:0|Fortinet|FortiAnalyzer|7.4|4000001|event:system|3|dvchost=faz01.corp.local act=log-received msg=FortiAnalyzer received 10000 logs from FortiGate cn1=10000 cn1Label=LogCount
+CEF:0|Fortinet|FortiGate|7.4.0|0000000022|traffic multicast|1|src=10.0.0.1 dst=224.0.0.5 proto=IGMP act=accept msg=Multicast traffic allowed
+CEF:0|Fortinet|FortiGate|7.4.0|0506047001|emailfilter:spam detected|5|src=172.16.1.40 dst=10.0.0.5 spt=25 dpt=25 proto=TCP act=tag fname=spam_email.eml msg=Email tagged as spam based on content analysis
+CEF:0|Fortinet|FortiMail|7.2|5000001|mail:malware blocked|8|src=192.168.1.50 dst=10.0.0.5 dpt=25 proto=TCP act=discard fname=trojan.zip msg=Malicious attachment blocked at mail gateway
+CEF:0|Fortinet|FortiGate|7.4.0|0000000023|traffic dns|2|src=10.0.0.15 dst=8.8.4.4 spt=53000 dpt=53 proto=UDP act=accept msg=DNS query for example.com in=64 out=128
+CEF:0|Fortinet|FortiGate|7.4.0|0800200100|dlp:data leak|7|src=10.0.0.85 dst=74.125.195.26 spt=49500 dpt=443 proto=TCP act=blocked FortinetFortiGatedlpsensor=CreditCard_Filter msg=Credit card number pattern detected and blocked

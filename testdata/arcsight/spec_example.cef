@@ -1,0 +1,15 @@
+CEF:0|Security|ThreatManager|1.0|100|worm successfully stopped|10|src=10.0.0.1 dst=2.1.2.2 spt=1232
+CEF:0|security|threatmanager|1.0|100|detected a \| in message|10|src=10.0.0.1 act=blocked a | dst=1.1.1.1
+CEF:0|ArcSight|Logger|7.5|100:200|Correlation Rule|5|src=10.0.0.1 dst=10.0.0.2 cs1=Brute Force cs1Label=RuleName cs2=Correlated cs2Label=Type rt=1234567890000
+CEF:0|ArcSight|ESM|7.0|rule:5|High Priority Alert|9|src=172.16.0.5 dst=10.0.0.1 act=Alert msg=Multiple failed login attempts detected from single source
+CEF:0|ArcSight|ESM|7.6|rule:10|Suspicious Outbound Connection|7|src=10.0.0.55 dst=172.16.1.77 spt=49152 dpt=4444 proto=TCP act=Alert msg=Outbound connection to known C2 server detected cs1=C2_Detection cs1Label=RuleName cn1=15 cn1Label=EventCount
+CEF:0|ArcSight|ESM|7.6|rule:12|Data Exfiltration Attempt|8|src=10.0.0.30 dst=192.168.1.50 spt=54321 dpt=443 proto=TCP act=Block msg=Large data transfer to external IP out=104857600 cs1=DLP_Rule cs1Label=RuleName
+CEF:0|ArcSight|Logger|7.5|cre:100|Active List Threshold Exceeded|6|src=10.0.0.100 act=Notify msg=Active list login_failures exceeded threshold of 10 entries cs1=Login_Failures_List cs1Label=ActiveListName cn1=15 cn1Label=CurrentCount
+CEF:0|ArcSight|ESM|7.6|rule:25|Privilege Escalation|9|src=10.0.0.20 suser=jdoe duser=root act=Alert msg=User escalated privileges from standard to root cs1=PrivEsc_Detection cs1Label=RuleName cs2=sudo cs2Label=Method
+CEF:0|ArcSight|SmartConnector|8.0|agent:114|Connector Heartbeat|1|dvchost=collector01.corp.local msg=SmartConnector heartbeat healthy rt=1700000000000 cn1=1500 cn1Label=EPS
+CEF:0|ArcSight|ESM|7.6|rule:30|Lateral Movement Detected|8|src=10.0.0.50 dst=10.0.0.51 spt=49200 dpt=445 proto=TCP act=Alert msg=SMB lateral movement between internal hosts cs1=Lateral_Movement cs1Label=RuleName suser=CORP\\attacker
+CEF:0|ArcSight|ESM|7.6|rule:40|Impossible Travel|7|src=172.16.1.1 suser=john.doe act=Alert msg=Login from two geographically distant locations within 5 minutes cs1=Impossible_Travel cs1Label=RuleName cs2=New York cs2Label=Location1 cs3=Tokyo cs3Label=Location2
+CEF:0|ArcSight|ESM|7.6|rule:50|DNS Tunneling Detected|8|src=10.0.0.75 dst=8.8.8.8 dpt=53 proto=UDP act=Alert msg=High volume of DNS TXT queries indicative of DNS tunneling cs1=DNS_Tunnel cs1Label=RuleName cn1=5000 cn1Label=QueryCount
+CEF:0|ArcSight|ESM|7.6|rule:60|Brute Force SSH|7|src=192.168.1.10 dst=10.0.0.5 dpt=22 proto=TCP act=Alert msg=Over 100 failed SSH login attempts in 5 minutes cs1=SSH_BruteForce cs1Label=RuleName cn1=150 cn1Label=FailedAttempts
+CEF:0|ArcSight|Logger|7.5|200:300|Log Source Down|6|dvchost=fw01.corp.local act=Notify msg=No events received from firewall in over 30 minutes cs1=LogSource_Health cs1Label=RuleName
+CEF:0|ArcSight|ESM|7.6|rule:70|Account Lockout Storm|7|src=10.0.0.0 act=Alert msg=50 account lockouts detected across domain in 2 minutes cs1=Lockout_Storm cs1Label=RuleName cn1=50 cn1Label=LockoutCount dntdom=CORP

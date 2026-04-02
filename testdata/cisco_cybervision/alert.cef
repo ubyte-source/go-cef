@@ -1,0 +1,19 @@
+CEF:0|Cisco|Cyber Vision|4.4.0|CiscoCVAlert|Alert|8|CiscoCVAlertType=Intrusion CiscoCVSeverity=critical src=192.168.1.100 dst=192.168.1.200 msg=Suspicious network activity detected on OT segment
+CEF:0|Cisco|Cyber Vision|4.4.0|CiscoCVComponent|Component Discovery|3|CiscoCVDeviceIP=10.0.1.50 CiscoCVDeviceMAC=00:1A:2B:3C:4D:5E msg=New device discovered on network
+CEF:0|Cisco|Cyber Vision|4.4.0|CiscoCVVuln|Vulnerability|7|CiscoCVDeviceIP=192.168.1.50 CiscoCVCVSS=8.5 msg=Known vulnerability detected on industrial controller
+CEF:0|Cisco|ASA|9.16|430003|ACL deny|7|src=192.168.1.1 dst=10.0.0.1 spt=12345 dpt=443 proto=TCP act=Deny cs1=outside cs1Label=Interface msg=Denied TCP connection
+CEF:0|Cisco|ASA|9.16|106023|ACL deny|5|src=192.168.1.10 dst=10.0.0.100 spt=54321 dpt=22 proto=TCP act=Deny cs1=outside cs1Label=Interface cs2=inbound cs2Label=Direction msg=Denied SSH from outside
+CEF:0|Cisco|ASA|9.16|302013|TCP connection|2|src=10.0.0.50 dst=8.8.8.8 spt=49152 dpt=53 proto=TCP act=Built cs1=inside cs1Label=SrcInterface cs2=outside cs2Label=DstInterface msg=Built outbound TCP connection
+CEF:0|Cisco|ASA|9.16|713228|VPN session|3|src=192.168.1.55 dst=10.0.0.1 suser=vpnuser@corp.com act=Connected msg=AnyConnect VPN session established
+CEF:0|Cisco|ASA|9.16|733100|Threat detection|8|src=192.168.1.100 dst=10.0.0.5 act=Shun msg=Threat detection scanning attack from host cn1=500 cn1Label=AttackRate
+CEF:0|Cisco|Firepower|7.2|1:2100498:7|GPL ATTACK_RESPONSE id check|6|src=192.168.1.50 dst=10.0.0.10 spt=80 dpt=49200 proto=TCP act=Alerted cs1=AC_Rule1 cs1Label=AccessControlRule msg=Intrusion event detected
+CEF:0|Cisco|Firepower|7.2|1:40001:3|Malware Detected|9|src=10.0.0.60 dst=172.16.1.20 spt=49300 dpt=443 proto=TCP act=Block fname=trojan.exe fileHash=abc123def456 cs1=FilePolicy1 cs1Label=FilePolicy msg=Malware file blocked
+CEF:0|Cisco|Firepower|7.2|CONN|Connection Event|2|src=10.0.0.30 dst=172.217.14.110 spt=49400 dpt=443 proto=TCP act=Allow in=1024 out=2048 cs1=Default cs1Label=AccessControlPolicy
+CEF:0|Cisco|ESA|14.0|ESA001|Spam Detected|4|src=172.16.1.40 dst=10.0.0.5 dpt=25 proto=TCP act=Quarantine suser=spammer@evil.com duser=user@corp.com msg=Spam email quarantined
+CEF:0|Cisco|ESA|14.0|ESA002|Malware Attachment|8|src=192.168.1.70 dst=10.0.0.5 dpt=25 proto=TCP act=Drop fname=invoice.zip suser=attacker@phish.com duser=finance@corp.com msg=Malicious attachment dropped
+CEF:0|Cisco|WSA|14.0|WSA001|URL Blocked|5|src=10.0.0.45 dst=93.184.216.34 dpt=443 proto=TCP act=Block request=https://malware.example.com/payload cs1=Malware cs1Label=Category msg=Malicious URL blocked
+CEF:0|Cisco|ISE|3.2|ISE001|Authentication Failed|6|src=10.0.0.80 duser=CORP\\jdoe act=Reject cs1=RADIUS cs1Label=AuthMethod cs2=dot1x cs2Label=Protocol msg=802.1X authentication failed
+CEF:0|Cisco|ISE|3.2|ISE002|Posture Assessment|4|src=10.0.0.90 duser=CORP\\analyst act=Compliant cs1=CorpPolicy cs1Label=PosturePolicy msg=Endpoint passed posture assessment
+CEF:0|Cisco|Umbrella|2.0|UMB001|DNS Blocked|6|src=10.0.0.55 dst=208.67.222.222 dpt=53 proto=UDP act=Block cs1=Malware cs1Label=Category msg=DNS query to known malicious domain blocked
+CEF:0|Cisco|Duo|2.0|DUO001|MFA Denied|7|src=192.168.1.80 duser=admin@corp.com act=Denied cs1=Push cs1Label=Factor msg=Multi-factor authentication denied due to suspicious location
+CEF:0|Cisco|Secure Endpoint|7.0|AMP001|Threat Detected|8|src=10.0.0.65 dhost=WORKSTATION01 act=Quarantine fname=dropper.exe fileHash=fedcba987654 cs1=W32.Malware cs1Label=ThreatName msg=Malware quarantined by Secure Endpoint

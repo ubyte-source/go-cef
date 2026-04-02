@@ -1,0 +1,33 @@
+
+NOT CEF AT ALL
+CEF:
+CEF:0
+CEF:0|
+CEF:0|Vendor
+CEF:0|Vendor|Product
+CEF:abc|V|P|1|100|N|5|
+NOTCEF:0|a|b|c|d|e|5|
+CEF:0|V|P|1|100|N
+C
+CE
+CEF
+cef:0|V|P|1|100|N|5|
+ CEF:0|V|P|1|100|N|5|
+CEF:0|V|P|1|100|N|5|thisisjusttext
+CEF:0|only two fields
+CEF:0|V|P|1|100
+CEF:0||||||||
+CEF:0|V|P|1|100|N|5|=nokey
+CEF:0|V|P|1|100|N|5|key=
+CEF:0|V|P|1|100|N|5|=
+CEF:0|V|P|1|100|N|5| =value
+CEF:0|V|P|1|100|N|notanumber|src=1.2.3.4
+CEF:0|V|P||100|N|5|src=1.2.3.4
+CEF:0|V||1|100|N|5|src=1.2.3.4
+CEF:-1|V|P|1|100|N|5|
+CEF:0|V|P|1|100|N|11|src=1.2.3.4
+CEF:0|V|P|1|100|N|-1|src=1.2.3.4
+CEF:0|V|P|1|100|N|999|
+just some random text
+{"json": "not cef"}
+<xml>not cef</xml>
