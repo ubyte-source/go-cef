@@ -115,7 +115,12 @@ func (p ExtPair) String() string {
 // The Event holds a reference to the original input; the buffer cannot be
 // GC'd while the Event is alive. For long-lived events, use [Event.Clone].
 //
-// Do NOT copy an Event by value — use [Event.Clone] or [Event.CloneTo].
+// Copying an Event by value shares the underlying buffer with the
+// original. Use [Event.Clone] or [Event.CloneTo] for independent copies.
+//
+// The struct is approximately 1.1 KiB due to the inlined extension array
+// ([MaxExtensions] × 16 bytes). Keep this in mind when sizing stack frames
+// or embedding Event in other structures.
 type Event struct {
 	Version    Version
 	Vendor     Span
@@ -139,7 +144,7 @@ func (e *Event) Valid() bool {
 
 // Reset clears the Event to its zero value.
 func (e *Event) Reset() {
-	e.Version = 0
+	e.Version = InvalidVersion
 	e.Vendor = Span{}
 	e.Product = Span{}
 	e.DevVersion = Span{}
@@ -170,6 +175,8 @@ func (e *Event) Text(s Span) string {
 }
 
 // Ext looks up an extension by key ([]byte). Zero-alloc.
+// For string keys, prefer [Event.ExtString] which benefits from compiler
+// optimizations and is typically faster.
 func (e *Event) Ext(key []byte) (Span, bool) {
 	if e.raw == nil {
 		return Span{}, false
@@ -206,6 +213,9 @@ func (e *Event) ExtAt(i int) (ExtPair, bool) {
 }
 
 // All returns an iterator over extension key-value pairs.
+//
+// Note: iteration allocates due to the range-over-func protocol.
+// For zero-alloc iteration, use [Event.ExtAt] in a loop.
 func (e *Event) All() iter.Seq2[Span, Span] {
 	return func(yield func(Span, Span) bool) {
 		for i := range e.exts[:e.ExtCount] {
@@ -307,14 +317,7 @@ func (e *Event) rebase(offset uint32) {
 // appendHeader writes the "CEF:ver|...|sev|" portion to dst.
 func (e *Event) appendHeader(dst []byte) []byte {
 	dst = append(dst, "CEF:"...)
-	switch e.Version {
-	case 0:
-		dst = append(dst, '0')
-	case 1:
-		dst = append(dst, '1')
-	default:
-		dst = append(dst, e.Version.String()...)
-	}
+	dst = strconv.AppendInt(dst, int64(e.Version), 10)
 	for _, s := range [...]Span{e.Vendor, e.Product, e.DevVersion, e.ClassID, e.Name, e.Severity} {
 		dst = append(dst, '|')
 		if b := e.Bytes(s); b != nil {
@@ -356,10 +359,7 @@ func (e *Event) AppendText(dst []byte) ([]byte, error) {
 }
 
 func (e *Event) estimateTextLen() int {
-	vlen := 1
-	if e.Version > 9 {
-		vlen = len(e.Version.String())
-	}
+	vlen := versionDigits(e.Version)
 	n := 4 + vlen // "CEF:" + version
 	for _, s := range [...]Span{e.Vendor, e.Product, e.DevVersion, e.ClassID, e.Name, e.Severity} {
 		n += 1 + int(s.Len())
@@ -374,6 +374,21 @@ func (e *Event) estimateTextLen() int {
 	return n
 }
 
+// versionDigits returns the number of decimal digits for a version number.
+// Avoids allocating a string representation.
+func versionDigits(v Version) int {
+	switch {
+	case v < 10:
+		return 1
+	case v < 100:
+		return 2
+	case v < 1000:
+		return 3
+	default:
+		return 4
+	}
+}
+
 // MarshalText implements [encoding.TextMarshaler].
 // Returns (nil, nil) if the Event has no backing buffer.
 func (e *Event) MarshalText() ([]byte, error) {
@@ -385,6 +400,8 @@ func (e *Event) MarshalText() ([]byte, error) {
 // parsing, use [Parser.Parse] directly.
 func (e *Event) UnmarshalText(text []byte) error {
 	buf := bytes.Clone(text)
+	// Stack-allocated Parser to avoid heap escape.
+	// Must be kept in sync with NewParser defaults.
 	var m Parser
 	m.maxExtensions = MaxExtensions
 	parsed, err := m.Parse(buf)

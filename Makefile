@@ -1,4 +1,4 @@
-.PHONY: all test bench fuzz lint clean vet cover build ci
+.PHONY: all test bench fuzz lint clean vet cover ci
 
 all: vet test bench
 
@@ -37,7 +37,3 @@ cover:
 	go tool cover -html=coverage.out -o coverage.html
 	@go tool cover -func=coverage.out | tail -1
 	@echo "Coverage report: coverage.html"
-
-# Build check — ensures everything compiles.
-build:
-	go build ./...

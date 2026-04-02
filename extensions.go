@@ -62,6 +62,9 @@ func (m *Parser) parseExtensions(pos uint32) *ParseError {
 
 // findValueEnd scans forward for the pattern "SPACE key_chars '='" to find
 // where the current value ends and the next key begins.
+//
+// Worst case: O(maxEqualsScanned × maxKeyLen) ≈ O(16 128) bytes scanned
+// per value, bounded by the DoS budget.
 func findValueEnd(data []byte, start, end uint32) uint32 {
 	i := start
 	budget := maxEqualsScanned

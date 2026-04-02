@@ -153,6 +153,8 @@ func scanField(input []byte, p, n, start uint32) uint32 {
 
 // parseVersionBytes converts ASCII digits to Version. Accepts 1–4 digits.
 // Returns [InvalidVersion] for empty, >4 digits, or leading zeros.
+//
+// Precondition: all bytes in b must be ASCII digits '0'–'9'.
 func parseVersionBytes(b []byte) Version {
 	n := len(b)
 	if n == 0 || n > 4 {

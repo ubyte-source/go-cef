@@ -294,8 +294,8 @@ func TestReset(t *testing.T) {
 	if saved.raw != nil {
 		t.Error("Reset: raw should be nil")
 	}
-	if saved.Version != 0 {
-		t.Error("Reset: Version should be 0")
+	if saved.Version != InvalidVersion {
+		t.Error("Reset: Version should be InvalidVersion")
 	}
 	if saved.ExtCount != 0 {
 		t.Error("Reset: ExtCount should be 0")

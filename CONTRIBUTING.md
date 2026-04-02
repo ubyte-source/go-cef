@@ -2,7 +2,7 @@
 
 ## Development Prerequisites
 
-- Go 1.25+
+- **Go 1.25+**
 - Make
 
 ## Getting Started
@@ -28,7 +28,7 @@ make vet         # Static analysis
 The hot path (`Parse`, `Ext`, `ExtString`, `Bytes`, `SeverityNum`) must produce
 **0 allocations per operation**. This is enforced by benchmarks with `-benchmem`.
 
-All benchmarks must use `b.Loop()` (Go 1.24+), not `for i := 0; i < b.N; i++`.
+All benchmarks must use `b.Loop()` (Go 1.25+), not `for i := 0; i < b.N; i++`.
 
 Before submitting a change, run:
 ```bash

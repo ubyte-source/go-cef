@@ -54,7 +54,7 @@ func parseDigitSeverity(b []byte) (int, bool) {
 	if n == 2 && b[0] == '1' && b[1] == '0' {
 		return 10, true
 	}
-	return -1, false
+	return 0, false
 }
 
 func numToSeverityLevel(num int) string {
@@ -73,20 +73,28 @@ func numToSeverityLevel(num int) string {
 }
 
 func matchNamedSeverity(b []byte) (name string, num int) {
-	if bytes.EqualFold(b, []byte("low")) {
-		return "Low", 3
+	// Dispatch on length first to avoid unnecessary EqualFold comparisons.
+	switch len(b) {
+	case 3: // "low"
+		if bytes.EqualFold(b, []byte("low")) {
+			return "Low", 3
+		}
+	case 4: // "high"
+		if bytes.EqualFold(b, []byte("high")) {
+			return "High", 8
+		}
+	case 6: // "medium"
+		if bytes.EqualFold(b, []byte("medium")) {
+			return "Medium", 6
+		}
+	case 7: // "unknown"
+		if bytes.EqualFold(b, []byte("unknown")) {
+			return "Unknown", SeverityUnknown
+		}
+	case 9: // "very-high"
+		if bytes.EqualFold(b, []byte("very-high")) {
+			return "Very-High", 10
+		}
 	}
-	if bytes.EqualFold(b, []byte("medium")) {
-		return "Medium", 6
-	}
-	if bytes.EqualFold(b, []byte("high")) {
-		return "High", 8
-	}
-	if bytes.EqualFold(b, []byte("very-high")) {
-		return "Very-High", 10
-	}
-	if bytes.EqualFold(b, []byte("unknown")) {
-		return "Unknown", SeverityUnknown
-	}
-	return "", -1
+	return "", 0
 }
