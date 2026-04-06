@@ -2,6 +2,7 @@ package cef_test
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/ubyte-source/go-cef"
 )
@@ -49,7 +50,10 @@ func ExampleNewParser_bestEffort() {
 
 func ExampleEvent_SeverityLevel() {
 	p := cef.NewParser()
-	e, _ := p.Parse([]byte(`CEF:0|V|P|1|100|N|8|`))
+	e, err := p.Parse([]byte(`CEF:0|V|P|1|100|N|8|`))
+	if err != nil {
+		panic(err)
+	}
 	num, _ := e.SeverityNum()
 	level, _ := e.SeverityLevel()
 	fmt.Println("Severity num:", num)
@@ -61,7 +65,10 @@ func ExampleEvent_SeverityLevel() {
 
 func ExampleEvent_ExtString() {
 	p := cef.NewParser()
-	e, _ := p.Parse([]byte(`CEF:0|V|P|1|100|N|5|src=10.0.0.1 dst=2.1.2.2 msg=hello world`))
+	e, err := p.Parse([]byte(`CEF:0|V|P|1|100|N|5|src=10.0.0.1 dst=2.1.2.2 msg=hello world`))
+	if err != nil {
+		panic(err)
+	}
 
 	keys := []string{"src", "dst", "msg", "nonexistent"}
 	for _, k := range keys {
@@ -78,9 +85,52 @@ func ExampleEvent_ExtString() {
 	// nonexistent = (not found)
 }
 
+func ExampleNewParser_pool() {
+	// Use sync.Pool in high-throughput pipelines to amortize Parser
+	// allocation across goroutines.
+	pool := sync.Pool{
+		New: func() any { return cef.NewParser() },
+	}
+
+	input := []byte(`CEF:0|V|P|1|100|N|5|src=10.0.0.1`)
+
+	p, ok := pool.Get().(*cef.Parser)
+	if !ok {
+		panic("type assertion failed")
+	}
+	e, err := p.Parse(input)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println("Vendor:", e.Text(e.Vendor))
+	pool.Put(p)
+	// Output:
+	// Vendor: V
+}
+
+func ExampleEvent_AppendBytes() {
+	p := cef.NewParser()
+	e, err := p.Parse([]byte(`CEF:0|V|P|1|100|N|5|src=10.0.0.1 dst=2.1.2.2`))
+	if err != nil {
+		panic(err)
+	}
+
+	// AppendBytes is zero-alloc when dst has sufficient capacity.
+	buf := make([]byte, 0, 64)
+	if src, ok := e.ExtString("src"); ok {
+		buf = e.AppendBytes(buf, src)
+	}
+	fmt.Println(string(buf))
+	// Output:
+	// 10.0.0.1
+}
+
 func ExampleEvent_All() {
 	p := cef.NewParser()
-	e, _ := p.Parse([]byte(`CEF:0|V|P|1|100|N|5|src=10.0.0.1 dst=2.1.2.2`))
+	e, err := p.Parse([]byte(`CEF:0|V|P|1|100|N|5|src=10.0.0.1 dst=2.1.2.2`))
+	if err != nil {
+		panic(err)
+	}
 
 	for key, val := range e.All() {
 		fmt.Printf("%s = %s\n", e.Text(key), e.Text(val))
@@ -92,8 +142,14 @@ func ExampleEvent_All() {
 
 func ExampleEvent_MarshalText() {
 	p := cef.NewParser()
-	e, _ := p.Parse([]byte(`CEF:0|Security|ThreatManager|1.0|100|Alert|5|src=10.0.0.1`))
-	b, _ := e.MarshalText()
+	e, err := p.Parse([]byte(`CEF:0|Security|ThreatManager|1.0|100|Alert|5|src=10.0.0.1`))
+	if err != nil {
+		panic(err)
+	}
+	b, err := e.MarshalText()
+	if err != nil {
+		panic(err)
+	}
 	fmt.Println(string(b))
 	// Output:
 	// CEF:0|Security|ThreatManager|1.0|100|Alert|5|src=10.0.0.1
@@ -101,11 +157,17 @@ func ExampleEvent_MarshalText() {
 
 func ExampleEvent_AppendText() {
 	p := cef.NewParser()
-	e, _ := p.Parse([]byte(`CEF:0|Security|ThreatManager|1.0|100|Alert|5|src=10.0.0.1`))
+	e, err := p.Parse([]byte(`CEF:0|Security|ThreatManager|1.0|100|Alert|5|src=10.0.0.1`))
+	if err != nil {
+		panic(err)
+	}
 
 	// AppendText with a pre-allocated buffer avoids allocations.
 	buf := make([]byte, 0, 256)
-	buf, _ = e.AppendText(buf)
+	buf, err = e.AppendText(buf)
+	if err != nil {
+		panic(err)
+	}
 	fmt.Println(string(buf))
 	// Output:
 	// CEF:0|Security|ThreatManager|1.0|100|Alert|5|src=10.0.0.1
@@ -113,13 +175,18 @@ func ExampleEvent_AppendText() {
 
 func ExampleEvent_Clone() {
 	p := cef.NewParser()
-	e, _ := p.Parse([]byte(`CEF:0|V|P|1|100|N|5|src=10.0.0.1`))
+	e, err := p.Parse([]byte(`CEF:0|V|P|1|100|N|5|src=10.0.0.1`))
+	if err != nil {
+		panic(err)
+	}
 
 	// Clone creates an independent deep copy.
 	saved := e.Clone()
 
 	// Parsing again overwrites the Parser's internal Event...
-	_, _ = p.Parse([]byte(`CEF:0|Other|X|2|200|Y|8|dst=2.2.2.2`))
+	if _, err := p.Parse([]byte(`CEF:0|Other|X|2|200|Y|8|dst=2.2.2.2`)); err != nil {
+		panic(err)
+	}
 
 	// ...but the clone is unaffected.
 	fmt.Println("Vendor:", saved.Text(saved.Vendor))

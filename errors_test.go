@@ -8,14 +8,14 @@ import (
 
 func TestErrorsIs(t *testing.T) {
 	tests := []struct {
+		want  error
 		name  string
 		input string
-		want  error
 	}{
-		{"empty", "", ErrEmpty},
-		{"bad_prefix", "NOTCEF:0|a|b|c|d|e|5|", ErrPrefix},
-		{"bad_version", "CEF:abc|V|P|1|100|N|5|", ErrVersion},
-		{"incomplete", "CEF:0|Vendor|Product", ErrIncompleteHeader},
+		{ErrEmpty, "empty", ""},
+		{ErrPrefix, "bad_prefix", "NOTCEF:0|a|b|c|d|e|5|"},
+		{ErrVersion, "bad_version", "CEF:abc|V|P|1|100|N|5|"},
+		{ErrIncompleteHeader, "incomplete", "CEF:0|Vendor|Product"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -102,19 +102,29 @@ func TestParseErrorPosition(t *testing.T) {
 	}
 }
 
-func TestParseErrorIndependence(t *testing.T) {
+func TestParseErrorReuse(t *testing.T) {
 	m := NewParser()
+
+	// First error: capture sentinel before next Parse overwrites it.
 	_, err1 := m.Parse([]byte{})
-	_, err2 := m.Parse([]byte(`NOTCEF`))
-	if err1 == nil || err2 == nil {
-		t.Fatal("expected both calls to return errors")
+	if err1 == nil {
+		t.Fatal("expected error")
 	}
 	if !errors.Is(err1, ErrEmpty) {
 		t.Errorf("err1: expected ErrEmpty, got: %v", err1)
 	}
+
+	// Second call reuses the preallocated ParseError —
+	// err1's contents are overwritten (documented behavior).
+	_, err2 := m.Parse([]byte(`NOTCEF`))
+	if err2 == nil {
+		t.Fatal("expected error")
+	}
 	if !errors.Is(err2, ErrPrefix) {
 		t.Errorf("err2: expected ErrPrefix, got: %v", err2)
 	}
+
+	// The pointer is reused (preallocated in Parser).
 	var pe1, pe2 *ParseError
 	if !errors.As(err1, &pe1) {
 		t.Fatal("err1 is not *ParseError")
@@ -122,8 +132,8 @@ func TestParseErrorIndependence(t *testing.T) {
 	if !errors.As(err2, &pe2) {
 		t.Fatal("err2 is not *ParseError")
 	}
-	if pe1 == pe2 {
-		t.Error("err1 and err2 share the same *ParseError — errors must be independent")
+	if pe1 != pe2 {
+		t.Error("expected err1 and err2 to share the same *ParseError (preallocated)")
 	}
 }
 
@@ -133,7 +143,7 @@ func TestErrInputTooLarge(t *testing.T) {
 	}
 	size := int(math.MaxUint32) + 1
 	input := make([]byte, size)
-	copy(input, []byte("CEF:0|V|P|1|100|N|5|"))
+	copy(input, "CEF:0|V|P|1|100|N|5|")
 	m := NewParser()
 	_, err := m.Parse(input)
 	if err == nil {
@@ -150,7 +160,7 @@ func TestErrInputTooLargeBestEffort(t *testing.T) {
 	}
 	size := int(math.MaxUint32) + 1
 	input := make([]byte, size)
-	copy(input, []byte("CEF:0|V|P|1|100|N|5|"))
+	copy(input, "CEF:0|V|P|1|100|N|5|")
 	m := NewParser(WithBestEffort())
 	e, err := m.Parse(input)
 	if err == nil {

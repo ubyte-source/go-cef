@@ -36,6 +36,9 @@ func (v Version) String() string {
 // Not safe for concurrent use. The *Event returned by [Parser.Parse] is valid
 // until the next Parse call; use [Event.Clone] to retain a copy.
 type Parser struct {
+	// parseErr and msg are placed first: both contain pointer fields
+	// (error interface and []byte respectively), minimizing GC pointer bytes.
+	parseErr      ParseError
 	msg           Event
 	bestEffort    bool
 	maxExtensions int
@@ -122,6 +125,9 @@ func (p ExtPair) String() string {
 // ([MaxExtensions] × 16 bytes). Keep this in mind when sizing stack frames
 // or embedding Event in other structures.
 type Event struct {
+	// raw is placed first to minimize GC pointer bytes in the struct layout.
+	raw []byte
+
 	Version    Version
 	Vendor     Span
 	Product    Span
@@ -131,7 +137,6 @@ type Event struct {
 	Severity   Span
 
 	ExtCount       int
-	raw            []byte
 	headerComplete bool
 
 	exts [MaxExtensions]ExtPair
@@ -174,6 +179,15 @@ func (e *Event) Text(s Span) string {
 	return string(e.raw[s.Start:s.End])
 }
 
+// AppendBytes appends the raw bytes for Span s to dst and returns the
+// extended buffer. Zero-alloc when dst has sufficient capacity.
+func (e *Event) AppendBytes(dst []byte, s Span) []byte {
+	if e.raw == nil || int(s.End) > len(e.raw) || s.Start > s.End {
+		return dst
+	}
+	return append(dst, e.raw[s.Start:s.End]...)
+}
+
 // Ext looks up an extension by key ([]byte). Zero-alloc.
 // For string keys, prefer [Event.ExtString] which benefits from compiler
 // optimizations and is typically faster.
@@ -214,7 +228,7 @@ func (e *Event) ExtAt(i int) (ExtPair, bool) {
 
 // All returns an iterator over extension key-value pairs.
 //
-// Note: iteration allocates due to the range-over-func protocol.
+// Allocates: ~40 B / 3 allocs per call due to the range-over-func protocol.
 // For zero-alloc iteration, use [Event.ExtAt] in a loop.
 func (e *Event) All() iter.Seq2[Span, Span] {
 	return func(yield func(Span, Span) bool) {
@@ -268,7 +282,7 @@ func (e *Event) usedRange() (lo, hi uint32) {
 	if e.raw == nil {
 		return 0, 0
 	}
-	lo = toU32(len(e.raw))
+	lo = safeU32(len(e.raw))
 	hi = 0
 	for _, s := range [...]Span{e.Vendor, e.Product, e.DevVersion, e.ClassID, e.Name, e.Severity} {
 		if !s.IsEmpty() {
@@ -390,14 +404,16 @@ func versionDigits(v Version) int {
 }
 
 // MarshalText implements [encoding.TextMarshaler].
+// Allocates: one buffer proportional to the serialized size.
 // Returns (nil, nil) if the Event has no backing buffer.
 func (e *Event) MarshalText() ([]byte, error) {
 	return e.AppendText(nil)
 }
 
 // UnmarshalText implements [encoding.TextUnmarshaler]. Copies the input
-// (required by the interface contract) and parses it. For zero-alloc
-// parsing, use [Parser.Parse] directly.
+// (required by the interface contract) and parses it.
+// Allocates: one copy of the input buffer plus one [ParseError] on error.
+// For zero-alloc parsing, use [Parser.Parse] directly.
 func (e *Event) UnmarshalText(text []byte) error {
 	buf := bytes.Clone(text)
 	// Stack-allocated Parser to avoid heap escape.
@@ -413,6 +429,7 @@ func (e *Event) UnmarshalText(text []byte) error {
 }
 
 // String returns a human-readable summary for debugging.
+// Allocates: one string via [strings.Builder].
 func (e *Event) String() string {
 	if e.raw == nil {
 		return "Event{}"

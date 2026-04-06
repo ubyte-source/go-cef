@@ -1,9 +1,34 @@
 package cef
 
 import (
+	"bytes"
 	"strings"
 	"testing"
 )
+
+// ---------------------------------------------------------------------------
+// Test helpers (shared across all internal _test.go files in package cef)
+// ---------------------------------------------------------------------------
+
+func assertSpan(t *testing.T, e *Event, s Span, want string) {
+	t.Helper()
+	got := e.Text(s)
+	if got != want {
+		t.Errorf("span: got %q, want %q", got, want)
+	}
+}
+
+func assertExt(t *testing.T, e *Event, key, want string) {
+	t.Helper()
+	span, ok := e.ExtString(key)
+	if !ok {
+		t.Fatalf("extension %q not found (extCount=%d)", key, e.ExtCount)
+	}
+	got := e.Text(span)
+	if got != want {
+		t.Errorf("ext %q: got %q, want %q", key, got, want)
+	}
+}
 
 // ---------------------------------------------------------------------------
 // Span & ExtPair
@@ -60,7 +85,10 @@ func TestExtPairString(t *testing.T) {
 
 func TestGetOutOfRange(t *testing.T) {
 	m := NewParser()
-	e, _ := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|src=1.2.3.4`))
+	e, err := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|src=1.2.3.4`))
+	if err != nil {
+		t.Fatal(err)
+	}
 	bad := Span{Start: 0, End: 999999}
 	if got := e.Bytes(bad); got != nil {
 		t.Errorf("expected nil for out-of-range Span, got %v", got)
@@ -79,7 +107,10 @@ func TestGetNilEvent(t *testing.T) {
 
 func TestGetInvertedSpan(t *testing.T) {
 	m := NewParser()
-	e, _ := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|`))
+	e, err := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|`))
+	if err != nil {
+		t.Fatal(err)
+	}
 	if got := e.Bytes(Span{Start: 10, End: 5}); got != nil {
 		t.Errorf("expected nil for inverted Span, got %v", got)
 	}
@@ -87,7 +118,10 @@ func TestGetInvertedSpan(t *testing.T) {
 
 func TestExtLookupNotFound(t *testing.T) {
 	m := NewParser()
-	e, _ := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|src=1.2.3.4`))
+	e, err := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|src=1.2.3.4`))
+	if err != nil {
+		t.Fatal(err)
+	}
 	if _, ok := e.ExtString("nonexistent"); ok {
 		t.Error("expected not found")
 	}
@@ -110,7 +144,10 @@ const keySrc = "src"
 
 func TestExtCount(t *testing.T) {
 	m := NewParser()
-	e, _ := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|src=1.2.3.4 dst=2.2.2.2`))
+	e, err := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|src=1.2.3.4 dst=2.2.2.2`))
+	if err != nil {
+		t.Fatal(err)
+	}
 	if e.ExtCount != 2 {
 		t.Fatalf("expected 2, got %d", e.ExtCount)
 	}
@@ -122,7 +159,10 @@ func TestExtCount(t *testing.T) {
 
 func TestExtCountEmpty(t *testing.T) {
 	m := NewParser()
-	e, _ := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|`))
+	e, err := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|`))
+	if err != nil {
+		t.Fatal(err)
+	}
 	if e.ExtCount != 0 {
 		t.Fatalf("expected 0, got %d", e.ExtCount)
 	}
@@ -130,7 +170,10 @@ func TestExtCountEmpty(t *testing.T) {
 
 func TestExtAt(t *testing.T) {
 	m := NewParser()
-	e, _ := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|src=1.2.3.4 dst=2.2.2.2`))
+	e, err := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|src=1.2.3.4 dst=2.2.2.2`))
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	p, ok := e.ExtAt(0)
 	if !ok {
@@ -163,7 +206,10 @@ func TestExtAtEmpty(t *testing.T) {
 
 func TestAllIterator(t *testing.T) {
 	m := NewParser()
-	e, _ := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|src=1.2.3.4 dst=2.2.2.2 msg=hello`))
+	e, err := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|src=1.2.3.4 dst=2.2.2.2 msg=hello`))
+	if err != nil {
+		t.Fatal(err)
+	}
 	var keys []string
 	for k, v := range e.All() {
 		keys = append(keys, e.Text(k))
@@ -179,7 +225,10 @@ func TestAllIterator(t *testing.T) {
 
 func TestAllIteratorBreakEarly(t *testing.T) {
 	m := NewParser()
-	e, _ := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|src=1.2.3.4 dst=2.2.2.2 msg=hello`))
+	e, err := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|src=1.2.3.4 dst=2.2.2.2 msg=hello`))
+	if err != nil {
+		t.Fatal(err)
+	}
 	count := 0
 	for range e.All() {
 		count++
@@ -210,7 +259,10 @@ func TestUsedRangeExtensionsOnly(t *testing.T) {
 
 func TestEventString(t *testing.T) {
 	m := NewParser()
-	e, _ := m.Parse([]byte(`CEF:0|Cisco|CyberVision|4.0|100|Alert|5|src=1.2.3.4`))
+	e, err := m.Parse([]byte(`CEF:0|Cisco|CyberVision|4.0|100|Alert|5|src=1.2.3.4`))
+	if err != nil {
+		t.Fatal(err)
+	}
 	s := e.String()
 	for _, want := range []string{"Cisco", "ver=0", "exts=1", "devver=4.0", "classid=100"} {
 		if !strings.Contains(s, want) {
@@ -228,7 +280,10 @@ func TestEventStringNil(t *testing.T) {
 
 func TestStringWithExtensions(t *testing.T) {
 	m := NewParser()
-	e, _ := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|src=1.2.3.4 dst=2.2.2.2`))
+	e, err := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|src=1.2.3.4 dst=2.2.2.2`))
+	if err != nil {
+		t.Fatal(err)
+	}
 	s := e.String()
 	if !strings.Contains(s, "src=1.2.3.4") {
 		t.Errorf("String() should contain extension sample, got: %s", s)
@@ -239,7 +294,10 @@ func TestStringTruncatesLongValues(t *testing.T) {
 	m := NewParser()
 	longVal := strings.Repeat("x", 50)
 	input := []byte(`CEF:0|V|P|1|100|N|5|msg=` + longVal)
-	e, _ := m.Parse(input)
+	e, err := m.Parse(input)
+	if err != nil {
+		t.Fatal(err)
+	}
 	s := e.String()
 	if strings.Contains(s, longVal) {
 		t.Error("String() should truncate long values")
@@ -251,7 +309,10 @@ func TestStringTruncatesLongValues(t *testing.T) {
 
 func TestStringManyExtensions(t *testing.T) {
 	m := NewParser()
-	e, _ := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|a=1 b=2 c=3 d=4 e=5`))
+	e, err := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|a=1 b=2 c=3 d=4 e=5`))
+	if err != nil {
+		t.Fatal(err)
+	}
 	s := e.String()
 	if !strings.Contains(s, " ...") {
 		t.Errorf("String() with >3 exts should contain ' ...' ellipsis, got: %s", s)
@@ -288,7 +349,10 @@ func TestVersionStringFastPath(t *testing.T) {
 
 func TestReset(t *testing.T) {
 	m := NewParser()
-	e, _ := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|src=1.2.3.4`))
+	e, err := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|src=1.2.3.4`))
+	if err != nil {
+		t.Fatal(err)
+	}
 	saved := e.Clone()
 	saved.Reset()
 	if saved.raw != nil {
@@ -311,7 +375,10 @@ func TestReset(t *testing.T) {
 
 func TestClone(t *testing.T) {
 	m := NewParser()
-	e, _ := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|src=1.2.3.4 dst=2.2.2.2`))
+	e, err := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|src=1.2.3.4 dst=2.2.2.2`))
+	if err != nil {
+		t.Fatal(err)
+	}
 	c := e.Clone()
 	if c.Version != e.Version {
 		t.Errorf("clone version: got %d, want %d", c.Version, e.Version)
@@ -324,7 +391,10 @@ func TestClone(t *testing.T) {
 	}
 	assertExt(t, c, "src", "1.2.3.4")
 	assertExt(t, c, "dst", "2.2.2.2")
-	_, _ = m.Parse([]byte(`CEF:0|X|Y|2|200|Z|9|a=b`))
+	_, err = m.Parse([]byte(`CEF:0|X|Y|2|200|Z|9|a=b`))
+	if err != nil {
+		t.Fatal(err)
+	}
 	if c.Text(c.Vendor) != "V" {
 		t.Error("clone was affected by subsequent parse")
 	}
@@ -332,9 +402,15 @@ func TestClone(t *testing.T) {
 
 func TestCloneIndependence(t *testing.T) {
 	m := NewParser()
-	e, _ := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|src=1.2.3.4`))
+	e, err := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|src=1.2.3.4`))
+	if err != nil {
+		t.Fatal(err)
+	}
 	c := e.Clone()
-	_, _ = m.Parse([]byte(`CEF:0|X|Y|2|200|Z|9|dst=9.9.9.9`))
+	_, err = m.Parse([]byte(`CEF:0|X|Y|2|200|Z|9|dst=9.9.9.9`))
+	if err != nil {
+		t.Fatal(err)
+	}
 	assertSpan(t, c, c.Vendor, "V")
 	assertExt(t, c, "src", "1.2.3.4")
 }
@@ -343,7 +419,10 @@ func TestCloneCompactValues(t *testing.T) {
 	padding := strings.Repeat("x", 1000)
 	input := []byte(`CEF:0|V|P|1|100|` + padding + `|5|src=1.2.3.4`)
 	m := NewParser()
-	e, _ := m.Parse(input)
+	e, err := m.Parse(input)
+	if err != nil {
+		t.Fatal(err)
+	}
 	c := e.Clone()
 	assertSpan(t, c, c.Vendor, "V")
 	assertSpan(t, c, c.Product, "P")
@@ -364,7 +443,10 @@ func TestCloneNilRaw(t *testing.T) {
 
 func TestCloneTo(t *testing.T) {
 	m := NewParser()
-	e, _ := m.Parse([]byte(`CEF:0|Cisco|ASA|9.16|430003|ACL deny|7|src=10.0.0.1 dst=2.1.2.2 act=Deny`))
+	e, err := m.Parse([]byte(`CEF:0|Cisco|ASA|9.16|430003|ACL deny|7|src=10.0.0.1 dst=2.1.2.2 act=Deny`))
+	if err != nil {
+		t.Fatal(err)
+	}
 	dst := &Event{}
 	result := e.CloneTo(dst)
 	if result != dst {
@@ -378,7 +460,10 @@ func TestCloneTo(t *testing.T) {
 
 func TestCloneToReusesBuffer(t *testing.T) {
 	m := NewParser()
-	e, _ := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|src=1.2.3.4 dst=2.2.2.2`))
+	e, err := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|src=1.2.3.4 dst=2.2.2.2`))
+	if err != nil {
+		t.Fatal(err)
+	}
 	dst := &Event{raw: make([]byte, 0, 4096)}
 	e.CloneTo(dst)
 	if cap(dst.raw) != 4096 {
@@ -400,12 +485,25 @@ func TestCloneToNilRaw(t *testing.T) {
 func TestCloneToZeroAlloc(t *testing.T) {
 	m := NewParser()
 	input := []byte(`CEF:0|V|P|1|100|N|5|src=1.2.3.4 dst=2.2.2.2`)
-	e, _ := m.Parse(input)
+	e, err := m.Parse(input)
+	if err != nil {
+		t.Fatal(err)
+	}
 	dst := &Event{raw: make([]byte, 0, 256)}
 	e.CloneTo(dst)
 	allocs := testing.AllocsPerRun(100, func() { e.CloneTo(dst) })
 	if allocs > 0 {
 		t.Errorf("expected 0 allocs after warmup, got %f", allocs)
+	}
+}
+
+// assertSpansEmpty checks that all given spans are empty.
+func assertSpansEmpty(t *testing.T, _ *Event, spans map[string]Span) {
+	t.Helper()
+	for name, s := range spans {
+		if !s.IsEmpty() {
+			t.Errorf("%s should be empty, got %s", name, s)
+		}
 	}
 }
 
@@ -424,19 +522,12 @@ func TestCloneBestEffortPartialHeader(t *testing.T) {
 	}
 	assertSpan(t, c, c.Vendor, "Vendor")
 	assertSpan(t, c, c.Product, "Product")
-	for _, tc := range []struct {
-		name string
-		s    Span
-	}{
-		{"DevVersion", c.DevVersion},
-		{"ClassID", c.ClassID},
-		{"Name", c.Name},
-		{"Severity", c.Severity},
-	} {
-		if !tc.s.IsEmpty() {
-			t.Errorf("%s should be empty after clone, got %s", tc.name, tc.s)
-		}
-	}
+	assertSpansEmpty(t, c, map[string]Span{
+		"DevVersion": c.DevVersion,
+		"ClassID":    c.ClassID,
+		"Name":       c.Name,
+		"Severity":   c.Severity,
+	})
 	if got := c.Text(c.DevVersion); got != "" {
 		t.Errorf("DevVersion text: got %q, want empty", got)
 	}
@@ -454,7 +545,13 @@ func TestCloneBestEffortPartialHeader(t *testing.T) {
 
 func TestCloneToBestEffortPartialHeader(t *testing.T) {
 	m := NewParser(WithBestEffort())
-	e, _ := m.Parse([]byte(`CEF:0|Vendor|Product`))
+	e, err := m.Parse([]byte(`CEF:0|Vendor|Product`))
+	if err == nil {
+		t.Fatal("expected error for truncated input")
+	}
+	if e == nil {
+		t.Fatal("expected non-nil event in best-effort mode")
+	}
 	dst := &Event{raw: make([]byte, 0, 256)}
 	e.CloneTo(dst)
 	assertSpan(t, dst, dst.Vendor, "Vendor")
@@ -516,7 +613,9 @@ func TestUnmarshalTextEmpty(t *testing.T) {
 func TestUnmarshalTextIndependentOfInput(t *testing.T) {
 	input := []byte(`CEF:0|V|P|1|100|N|5|src=1.2.3.4`)
 	var e Event
-	_ = e.UnmarshalText(input)
+	if err := e.UnmarshalText(input); err != nil {
+		t.Fatal(err)
+	}
 	copy(input, "XXXXXXXXXXXXXXXXXXXXXXXXXX")
 	assertSpan(t, &e, e.Vendor, "V")
 	assertExt(t, &e, "src", "1.2.3.4")
@@ -534,19 +633,25 @@ func TestUnescapeHeaderWithDstBuffer(t *testing.T) {
 func TestMarshalText(t *testing.T) {
 	m := NewParser()
 	input := []byte(`CEF:0|Security|ThreatManager|1.0|100|worm stopped|10|src=10.0.0.1 dst=2.1.2.2`)
-	e, _ := m.Parse(input)
+	e, err := m.Parse(input)
+	if err != nil {
+		t.Fatal(err)
+	}
 	got, err := e.MarshalText()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if string(got) != string(input) {
+	if !bytes.Equal(got, input) {
 		t.Errorf("MarshalText:\n got: %s\nwant: %s", got, input)
 	}
 }
 
 func TestMarshalTextHeaderOnly(t *testing.T) {
 	m := NewParser()
-	e, _ := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|`))
+	e, err := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|`))
+	if err != nil {
+		t.Fatal(err)
+	}
 	got, err := e.MarshalText()
 	if err != nil {
 		t.Fatal(err)
@@ -569,7 +674,10 @@ func TestMarshalTextNilEvent(t *testing.T) {
 
 func TestMarshalTextNoTrailingPipe(t *testing.T) {
 	m := NewParser()
-	e, _ := m.Parse([]byte(`CEF:0|V|P|1|100|N|5`))
+	e, err := m.Parse([]byte(`CEF:0|V|P|1|100|N|5`))
+	if err != nil {
+		t.Fatal(err)
+	}
 	got, err := e.MarshalText()
 	if err != nil {
 		t.Fatal(err)
@@ -582,12 +690,15 @@ func TestMarshalTextNoTrailingPipe(t *testing.T) {
 func TestMarshalTextEscapesPreserved(t *testing.T) {
 	m := NewParser()
 	input := []byte(`CEF:0|security|threatmanager|1.0|100|detected a \| in message|10|msg=equation is 2+2\=4`)
-	e, _ := m.Parse(input)
+	e, err := m.Parse(input)
+	if err != nil {
+		t.Fatal(err)
+	}
 	got, err := e.MarshalText()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(got) != string(input) {
+	if !bytes.Equal(got, input) {
 		t.Errorf("MarshalText:\n got: %s\nwant: %s", got, input)
 	}
 }
@@ -633,7 +744,10 @@ func TestMarshalTextRoundTrip(t *testing.T) {
 
 func TestMarshalTextCloned(t *testing.T) {
 	m := NewParser()
-	e, _ := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|src=1.2.3.4 dst=2.2.2.2`))
+	e, err := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|src=1.2.3.4 dst=2.2.2.2`))
+	if err != nil {
+		t.Fatal(err)
+	}
 	c := e.Clone()
 	got, err := c.MarshalText()
 	if err != nil {
@@ -642,6 +756,52 @@ func TestMarshalTextCloned(t *testing.T) {
 	want := `CEF:0|V|P|1|100|N|5|src=1.2.3.4 dst=2.2.2.2`
 	if string(got) != want {
 		t.Errorf("MarshalText after Clone:\n got: %s\nwant: %s", got, want)
+	}
+}
+
+func TestVersionDigitsAllBranches(t *testing.T) {
+	tests := []struct {
+		v    Version
+		want int
+	}{
+		{0, 1}, {9, 1}, // v < 10
+		{10, 2}, {99, 2}, // v < 100
+		{100, 3}, {999, 3}, // v < 1000
+		{1000, 4}, // v >= 1000
+	}
+	for _, tt := range tests {
+		got := versionDigits(tt.v)
+		if got != tt.want {
+			t.Errorf("versionDigits(%d) = %d, want %d", tt.v, got, tt.want)
+		}
+	}
+}
+
+func TestAppendBytesInvalidSpan(t *testing.T) {
+	m := NewParser()
+	e, err := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|`))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Inverted span (Start > End) — must return dst unchanged.
+	dst := []byte("prefix")
+	got := e.AppendBytes(dst, Span{Start: 10, End: 5})
+	if string(got) != "prefix" {
+		t.Errorf("inverted span: got %q, want %q", got, "prefix")
+	}
+
+	// Out-of-bounds span — must return dst unchanged.
+	got = e.AppendBytes(dst, Span{Start: 0, End: 99999})
+	if string(got) != "prefix" {
+		t.Errorf("out-of-bounds span: got %q, want %q", got, "prefix")
+	}
+
+	// Nil raw — must return dst unchanged.
+	var empty Event
+	got = empty.AppendBytes(dst, Span{Start: 0, End: 5})
+	if string(got) != "prefix" {
+		t.Errorf("nil raw: got %q, want %q", got, "prefix")
 	}
 }
 

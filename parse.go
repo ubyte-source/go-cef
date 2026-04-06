@@ -5,10 +5,10 @@ import (
 	"math"
 )
 
-// toU32 safely converts a non-negative int to uint32, clamping at MaxUint32.
-func toU32(n int) uint32 {
-	if n > math.MaxUint32 {
-		return math.MaxUint32
+// safeU32 converts a non-negative int to uint32 with overflow protection.
+func safeU32(n int) uint32 {
+	if n < 0 || n > math.MaxUint32 {
+		return 0
 	}
 	return uint32(n)
 }
@@ -25,31 +25,32 @@ func (m *Parser) fail(pe *ParseError) (*Event, error) {
 // Parse parses the input as a CEF message.
 //
 // The returned *Event is valid until the next Parse call on the same Parser.
-// The returned error, if non-nil, is a *[ParseError]; each call returns an
-// independent error value.
+// The returned error, if non-nil, is a *[ParseError] whose value is also
+// valid only until the next Parse call on the same Parser.
 func (m *Parser) Parse(input []byte) (*Event, error) {
 	m.resetMsg(input)
 
 	if len(input) == 0 {
-		return m.fail(newParseError(0, ErrEmpty))
+		return m.fail(m.makeError(0, ErrEmpty))
 	}
-	if len(input) > math.MaxUint32 {
-		return m.fail(newParseError(0, ErrInputTooLarge))
+	inputLen := len(input)
+	if inputLen > math.MaxUint32 {
+		return m.fail(m.makeError(0, ErrInputTooLarge))
 	}
+	n := safeU32(inputLen)
 
-	p, err := m.parseVersion(input)
+	p, err := m.parseVersion(input, n)
 	if err != nil {
 		return m.fail(err)
 	}
 
-	p, err = m.parseHeaderFields(input, p)
+	p, err = m.parseHeaderFields(input, p, n)
 	if err != nil {
 		return m.fail(err)
 	}
 
 	m.msg.headerComplete = true
 
-	n := toU32(len(input))
 	if p < n && input[p] == '|' {
 		if extErr := m.parseExtensions(p + 1); extErr != nil {
 			return m.fail(extErr)
@@ -57,6 +58,16 @@ func (m *Parser) Parse(input []byte) (*Event, error) {
 	}
 
 	return &m.msg, nil
+}
+
+// ParseString is like [Parser.Parse] but accepts a string, avoiding the
+// string→[]byte copy when the caller already has a string. The parser
+// never modifies the input buffer.
+func (m *Parser) ParseString(input string) (*Event, error) {
+	if input == "" {
+		return m.Parse(nil)
+	}
+	return m.Parse([]byte(input))
 }
 
 // resetMsg prepares the Event for a new parse.
@@ -73,79 +84,128 @@ func (m *Parser) resetMsg(input []byte) {
 	m.msg.headerComplete = false
 }
 
-// parseVersion validates the "CEF:" prefix, skips optional whitespace,
-// and parses the version number. Returns the position after "version|".
-func (m *Parser) parseVersion(input []byte) (uint32, *ParseError) {
-	n := toU32(len(input))
-	if n < 4 || string(input[:4]) != "CEF:" {
-		return 0, newParseError(0, ErrPrefix)
-	}
-	p := uint32(4)
-
-	// Skip optional whitespace (some vendors emit "CEF: 0").
-	for int(p) < len(input) && input[p] == ' ' {
+// skipSpaces advances p past any space characters.
+func skipSpaces(input []byte, p, n uint32) uint32 {
+	for p < n && input[p] == ' ' {
 		p++
 	}
+	return p
+}
 
-	// Version: one or more ASCII digits.
-	if int(p) >= len(input) || input[p] < '0' || input[p] > '9' {
-		return p, newParseError(p, ErrVersion)
-	}
-	vStart := p
+// scanDigits advances p past ASCII digits '0'–'9'.
+func scanDigits(input []byte, p, n uint32) uint32 {
 	for p < n && input[p] >= '0' && input[p] <= '9' {
 		p++
 	}
+	return p
+}
+
+// parseVersion validates the "CEF:" prefix, skips optional whitespace,
+// and parses the version number. Returns the position after "version|".
+func (m *Parser) parseVersion(input []byte, n uint32) (uint32, *ParseError) {
+	if n < 4 || string(input[:4]) != "CEF:" {
+		return 0, m.makeError(0, ErrPrefix)
+	}
+	p := skipSpaces(input, 4, n)
+
+	// Version: one or more ASCII digits.
+	if p >= n || input[p] < '0' || input[p] > '9' {
+		return p, m.makeError(p, ErrVersion)
+	}
+	vStart := p
+	p = scanDigits(input, p, n)
 	m.msg.Version = parseVersionBytes(input[vStart:p])
 	if m.msg.Version < 0 {
-		return vStart, newParseError(vStart, ErrVersion)
+		return vStart, m.makeError(vStart, ErrVersion)
 	}
 
 	if p >= n || input[p] != '|' {
-		return p, newParseError(p, ErrIncompleteHeader)
+		return p, m.makeError(p, ErrIncompleteHeader)
 	}
-	p++
-	return p, nil
+	return p + 1, nil
+}
+
+// hasPipe checks whether input[p] is a pipe delimiter.
+func hasPipe(input []byte, p, n uint32) bool {
+	return p < n && input[p] == '|'
 }
 
 // parseHeaderFields parses the 6 pipe-delimited header fields
 // (Vendor, Product, DevVersion, ClassID, Name, Severity).
-func (m *Parser) parseHeaderFields(input []byte, p uint32) (uint32, *ParseError) {
-	n := toU32(len(input))
-	spans := [6]*Span{
-		&m.msg.Vendor, &m.msg.Product, &m.msg.DevVersion,
-		&m.msg.ClassID, &m.msg.Name, &m.msg.Severity,
+// Unrolled for zero-indirection and better branch prediction.
+func (m *Parser) parseHeaderFields(input []byte, p, n uint32) (uint32, *ParseError) {
+	var start uint32
+
+	start = p
+	p = scanField(input, p, n, start)
+	m.msg.Vendor = Span{start, p}
+	if !hasPipe(input, p, n) {
+		return p, m.makeError(p, ErrIncompleteHeader)
 	}
-	for i := range spans {
-		start := p
-		p = scanField(input, p, n, start)
-		*spans[i] = Span{start, p}
-		if i < 5 {
-			if p >= n || input[p] != '|' {
-				return p, newParseError(p, ErrIncompleteHeader)
-			}
-			p++
-		}
+	p++
+
+	start = p
+	p = scanField(input, p, n, start)
+	m.msg.Product = Span{start, p}
+	if !hasPipe(input, p, n) {
+		return p, m.makeError(p, ErrIncompleteHeader)
 	}
+	p++
+
+	start = p
+	p = scanField(input, p, n, start)
+	m.msg.DevVersion = Span{start, p}
+	if !hasPipe(input, p, n) {
+		return p, m.makeError(p, ErrIncompleteHeader)
+	}
+	p++
+
+	start = p
+	p = scanField(input, p, n, start)
+	m.msg.ClassID = Span{start, p}
+	if !hasPipe(input, p, n) {
+		return p, m.makeError(p, ErrIncompleteHeader)
+	}
+	p++
+
+	start = p
+	p = scanField(input, p, n, start)
+	m.msg.Name = Span{start, p}
+	if !hasPipe(input, p, n) {
+		return p, m.makeError(p, ErrIncompleteHeader)
+	}
+	p++
+
+	start = p
+	p = scanField(input, p, n, start)
+	m.msg.Severity = Span{start, p}
+
 	return p, nil
 }
 
 // scanField scans forward in input[p:n] for the next unescaped '|', returning
 // its position. If no '|' is found, returns n.
 func scanField(input []byte, p, n, start uint32) uint32 {
+	if p >= n {
+		return n
+	}
+	_ = input[n-1] // BCE hint
 	for {
 		idx := bytes.IndexByte(input[p:n], '|')
 		if idx < 0 {
 			return n
 		}
-		p += toU32(idx)
-		// Count preceding backslashes to detect escaped pipes.
-		bs := uint32(0)
-		for j := p; j > start && input[j-1] == '\\'; j-- {
-			bs++
-		}
-		if bs%2 == 1 {
-			p++
-			continue
+		p += safeU32(idx)
+		// Inline backward backslash count — only runs when '|' is found.
+		if p > start && input[p-1] == '\\' {
+			bs := uint32(1)
+			for j := p - 1; j > start && input[j-1] == '\\'; j-- {
+				bs++
+			}
+			if bs%2 == 1 {
+				p++
+				continue
+			}
 		}
 		return p
 	}

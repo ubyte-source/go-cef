@@ -251,7 +251,7 @@ func TestParseLargeBuffer(t *testing.T) {
 
 func TestParseMaxExtensions(t *testing.T) {
 	m := NewParser()
-	var parts []string
+	parts := make([]string, 0, MaxExtensions)
 	for i := 0; i < MaxExtensions; i++ {
 		parts = append(parts, "k"+string(rune('A'+i/26))+string(rune('a'+i%26))+"=v")
 	}
@@ -313,7 +313,10 @@ func TestParseParserReuse(t *testing.T) {
 			t.Fatal("expected valid message")
 		}
 	}
-	e, _ := m.Parse(inputs[1])
+	e, err := m.Parse(inputs[1])
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if e.Version != 1 {
 		t.Errorf("version: got %d, want 1", e.Version)
 	}
@@ -374,7 +377,8 @@ func TestParseExtensionsLeadingSpaces(t *testing.T) {
 
 func TestParseExtKeyInvalidBestEffort(t *testing.T) {
 	m := NewParser(WithBestEffort())
-	e, _ := m.Parse([]byte("CEF:0|V|P|1|100|N|5|bad key=val"))
+	e, err := m.Parse([]byte("CEF:0|V|P|1|100|N|5|bad key=val"))
+	_ = err // best-effort: error expected for invalid key
 	if e == nil {
 		t.Fatal("expected non-nil event")
 	}
@@ -442,5 +446,23 @@ func TestParseVersionBytes(t *testing.T) {
 		if got != tt.want {
 			t.Errorf("parseVersionBytes(%q) = %d, want %d", tt.input, got, tt.want)
 		}
+	}
+}
+
+func TestParseString(t *testing.T) {
+	m := NewParser()
+
+	// Normal input.
+	e, err := m.ParseString(`CEF:0|Vendor|Product|1.0|100|Name|5|src=1.2.3.4`)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	assertSpan(t, e, e.Vendor, "Vendor")
+	assertExt(t, e, "src", "1.2.3.4")
+
+	// Empty string.
+	_, err = m.ParseString("")
+	if err == nil {
+		t.Fatal("expected error for empty string")
 	}
 }

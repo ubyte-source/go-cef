@@ -91,7 +91,8 @@ func FuzzParse(f *testing.F) {
 
 		// Best-effort mode: must not panic.
 		m2 := NewParser(WithBestEffort())
-		e2, _ := m2.Parse(data)
+		e2, errBE := m2.Parse(data)
+		_ = errBE // best-effort: errors expected for fuzz input
 		if e2 != nil {
 			exerciseEvent(e2)
 		}

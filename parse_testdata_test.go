@@ -83,7 +83,10 @@ func assertVendorFile(t *testing.T, m *Parser, file string) {
 // TestTestdataEdgeCases reads edge_cases/*.cef and verifies parsing succeeds.
 func TestTestdataEdgeCases(t *testing.T) {
 	m := NewParser()
-	files, _ := filepath.Glob("testdata/edge_cases/*.cef")
+	files, err := filepath.Glob("testdata/edge_cases/*.cef")
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, file := range files {
 		t.Run(filepath.Base(file), func(t *testing.T) {
 			lines := readLines(t, file)
@@ -109,7 +112,10 @@ func TestTestdataEdgeCases(t *testing.T) {
 // no panics occur and partial results are returned.
 func TestTestdataMalformed(t *testing.T) {
 	m := NewParser(WithBestEffort())
-	files, _ := filepath.Glob("testdata/malformed/*.cef")
+	files, err := filepath.Glob("testdata/malformed/*.cef")
+	if err != nil {
+		t.Fatal(err)
+	}
 	for _, file := range files {
 		t.Run(filepath.Base(file), func(t *testing.T) {
 			lines := readLines(t, file)
@@ -117,7 +123,12 @@ func TestTestdataMalformed(t *testing.T) {
 				if line == "" {
 					continue
 				}
-				e, _ := m.Parse([]byte(line))
+				e, parseErr := m.Parse([]byte(line))
+				if parseErr != nil && e == nil {
+					t.Errorf("line %d: expected non-nil message in BestEffort mode",
+						i+1)
+					continue
+				}
 				if e == nil {
 					t.Errorf("line %d: expected non-nil message in BestEffort mode",
 						i+1)

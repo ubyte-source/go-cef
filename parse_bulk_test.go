@@ -62,8 +62,7 @@ func buildBulkExtensions(i int) []string {
 		exts = append(exts, "dst="+bulkDstIPs[(i*17)%len(bulkDstIPs)])
 	}
 	if i%3 != 0 {
-		exts = append(exts, fmt.Sprintf("spt=%d", 1024+(i*37)%64000))
-		exts = append(exts, fmt.Sprintf("dpt=%d", (i*53)%65535))
+		exts = append(exts, fmt.Sprintf("spt=%d", 1024+(i*37)%64000), fmt.Sprintf("dpt=%d", (i*53)%65535))
 	}
 	if i%3 != 1 {
 		exts = append(exts, "proto="+bulkProtos[(i*19)%len(bulkProtos)])
@@ -77,6 +76,11 @@ func buildBulkExtensions(i int) []string {
 	if i%3 == 0 {
 		exts = append(exts, fmt.Sprintf("dhost=HOST%03d", i%100))
 	}
+
+	return buildBulkExtrasExts(exts, i)
+}
+
+func buildBulkExtrasExts(exts []string, i int) []string {
 	if i%4 == 0 {
 		exts = append(exts, "deviceProcessName="+bulkProcesses[(i*31)%len(bulkProcesses)])
 	}

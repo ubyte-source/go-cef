@@ -72,29 +72,31 @@ func numToSeverityLevel(num int) string {
 	}
 }
 
+type namedSev struct {
+	canonical string
+	num       int
+}
+
+// namedSeverityByLen maps byte-length to the sole named severity of that length.
+var namedSeverityByLen = [10]namedSev{
+	3: {"Low", 3},
+	4: {"High", 8},
+	6: {"Medium", 6},
+	7: {"Unknown", SeverityUnknown},
+	9: {"Very-High", 10},
+}
+
 func matchNamedSeverity(b []byte) (name string, num int) {
-	// Dispatch on length first to avoid unnecessary EqualFold comparisons.
-	switch len(b) {
-	case 3: // "low"
-		if bytes.EqualFold(b, []byte("low")) {
-			return "Low", 3
-		}
-	case 4: // "high"
-		if bytes.EqualFold(b, []byte("high")) {
-			return "High", 8
-		}
-	case 6: // "medium"
-		if bytes.EqualFold(b, []byte("medium")) {
-			return "Medium", 6
-		}
-	case 7: // "unknown"
-		if bytes.EqualFold(b, []byte("unknown")) {
-			return "Unknown", SeverityUnknown
-		}
-	case 9: // "very-high"
-		if bytes.EqualFold(b, []byte("very-high")) {
-			return "Very-High", 10
-		}
+	n := len(b)
+	if n >= len(namedSeverityByLen) {
+		return "", 0
+	}
+	entry := namedSeverityByLen[n]
+	if entry.canonical == "" {
+		return "", 0
+	}
+	if bytes.EqualFold(b, []byte(entry.canonical)) {
+		return entry.canonical, entry.num
 	}
 	return "", 0
 }

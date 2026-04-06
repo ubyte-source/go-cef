@@ -41,7 +41,7 @@ Every benchmark line must show `0 B/op` and `0 allocs/op`.
 
 1. Create a directory under `testdata/<vendor>/`
 2. Add `.cef` files with one CEF message per line
-3. The data-driven test in `testdata_test.go` will automatically pick them up
+3. The data-driven test in `parse_testdata_test.go` will automatically pick them up
 4. Run `make test` to verify
 
 ## Code Style
@@ -55,10 +55,10 @@ Every benchmark line must show `0 B/op` and `0 allocs/op`.
 
 ```
 cef.go         — Types: Parser, Event, ParserOption, Span, ExtPair, Clone, Marshal
-parse.go       — Parse, parseVersion, parseHeaderFields, scanField, parseVersionBytes
+parse.go       — Parse, ParseString, parseVersion, parseHeaderFields, scanField
 extensions.go  — Extension key=value parsing: parseExtensions, findValueEnd
 unescape.go    — Unescape helpers for header and extension values
-errors.go      — Error types with positional information, newParseError
+errors.go      — Error types with positional information, makeError
 severity.go    — SeverityNum(), SeverityLevel() — on-demand conversion
 doc.go         — Package documentation
 ```

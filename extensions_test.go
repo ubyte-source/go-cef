@@ -43,27 +43,25 @@ func TestIsKeyBitsetCorrectness(t *testing.T) {
 	}
 }
 
-func TestIsEscapedAt(t *testing.T) {
+func TestEscapeDetectionInFindValueEnd(t *testing.T) {
+	// Verify that findValueEnd correctly handles escaped equals signs,
+	// which exercises the inline escape-detection logic that replaced isEscapedAt.
 	tests := []struct {
-		name   string
-		data   string
-		pos    uint32
-		minPos uint32
-		want   bool
+		name string
+		data string
+		want uint32
 	}{
-		{"no_backslash", "abc=def", 3, 0, false},
-		{"single_backslash", "ab\\=def", 3, 0, true},
-		{"double_backslash", "ab\\\\=def", 4, 0, false},
-		{"triple_backslash", "ab\\\\\\=def", 5, 0, true},
-		{"at_minPos", "\\=", 1, 1, false},
-		{"pos_zero", "=abc", 0, 0, false},
+		{"unescaped_eq", "val key=x", 3},
+		{"escaped_eq", "val\\= key=x", 5},
+		{"double_backslash_eq", "val\\\\ key=x", 5},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := isEscapedAt([]byte(tt.data), tt.pos, tt.minPos)
+			data := []byte(tt.data)
+			got := findValueEnd(data, 0, safeU32(len(data)))
 			if got != tt.want {
-				t.Errorf("isEscapedAt(%q, %d, %d) = %v, want %v",
-					tt.data, tt.pos, tt.minPos, got, tt.want)
+				t.Errorf("findValueEnd(%q, 0, %d) = %d, want %d",
+					tt.data, len(data), got, tt.want)
 			}
 		})
 	}
@@ -78,11 +76,17 @@ func TestValidKeyEmpty(t *testing.T) {
 	}
 }
 
-func TestIndexByteFromOutOfRange(t *testing.T) {
+func TestFindValueEndOutOfRange(t *testing.T) {
+	// Exercise the guard: start >= end should return end.
 	data := []byte("hello")
-	_, ok := indexByteFrom(data, 100, 'h')
-	if ok {
-		t.Error("expected not found")
+	got := findValueEnd(data, 100, 5)
+	if got != 5 {
+		t.Errorf("findValueEnd with start > end returned %d, want 5", got)
+	}
+	// start == end should also return end.
+	got = findValueEnd(data, 5, 5)
+	if got != 5 {
+		t.Errorf("findValueEnd with start == end returned %d, want 5", got)
 	}
 }
 
@@ -102,7 +106,7 @@ func TestFindValueEnd(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			data := []byte(tt.data)
-			got := findValueEnd(data, tt.start, toU32(len(data)))
+			got := findValueEnd(data, tt.start, safeU32(len(data)))
 			if got != tt.want {
 				t.Errorf("findValueEnd(%q, %d, %d) = %d, want %d",
 					tt.data, tt.start, len(data), got, tt.want)

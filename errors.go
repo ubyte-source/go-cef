@@ -23,8 +23,8 @@ const SeverityUnknown = -1
 
 // ParseError is a parsing error with byte offset.
 type ParseError struct {
-	Position uint32
 	Err      error
+	Position uint32
 }
 
 // Error returns a human-readable message including the byte offset.
@@ -37,6 +37,10 @@ func (e *ParseError) Unwrap() error {
 	return e.Err
 }
 
-func newParseError(pos uint32, sentinel error) *ParseError {
-	return &ParseError{Position: pos, Err: sentinel}
+// makeError reuses the preallocated ParseError in the Parser.
+// The returned pointer is valid until the next Parse call.
+func (m *Parser) makeError(pos uint32, sentinel error) *ParseError {
+	m.parseErr.Err = sentinel
+	m.parseErr.Position = pos
+	return &m.parseErr
 }

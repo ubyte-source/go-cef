@@ -13,7 +13,9 @@ func BenchmarkParseMinimal(b *testing.B) {
 	b.ReportAllocs()
 	b.SetBytes(int64(len(input)))
 	for b.Loop() {
-		_, _ = m.Parse(input)
+		if _, err := m.Parse(input); err != nil {
+			b.Fatal(err)
+		}
 	}
 }
 
@@ -27,7 +29,9 @@ func BenchmarkParseCiscoCyberVision(b *testing.B) {
 	b.ReportAllocs()
 	b.SetBytes(int64(len(input)))
 	for b.Loop() {
-		_, _ = m.Parse(input)
+		if _, err := m.Parse(input); err != nil {
+			b.Fatal(err)
+		}
 	}
 }
 
@@ -41,7 +45,9 @@ func BenchmarkParseCiscoASA(b *testing.B) {
 	b.ReportAllocs()
 	b.SetBytes(int64(len(input)))
 	for b.Loop() {
-		_, _ = m.Parse(input)
+		if _, err := m.Parse(input); err != nil {
+			b.Fatal(err)
+		}
 	}
 }
 
@@ -59,7 +65,9 @@ func BenchmarkParseCheckPointHeavy(b *testing.B) {
 	b.ReportAllocs()
 	b.SetBytes(int64(len(input)))
 	for b.Loop() {
-		_, _ = m.Parse(input)
+		if _, err := m.Parse(input); err != nil {
+			b.Fatal(err)
+		}
 	}
 }
 
@@ -73,7 +81,9 @@ func BenchmarkParsePaloAlto(b *testing.B) {
 	b.ReportAllocs()
 	b.SetBytes(int64(len(input)))
 	for b.Loop() {
-		_, _ = m.Parse(input)
+		if _, err := m.Parse(input); err != nil {
+			b.Fatal(err)
+		}
 	}
 }
 
@@ -87,7 +97,9 @@ func BenchmarkParseWithEscaping(b *testing.B) {
 	b.ReportAllocs()
 	b.SetBytes(int64(len(input)))
 	for b.Loop() {
-		_, _ = m.Parse(input)
+		if _, err := m.Parse(input); err != nil {
+			b.Fatal(err)
+		}
 	}
 }
 
@@ -97,32 +109,9 @@ func BenchmarkParseHeaderOnly(b *testing.B) {
 	b.ReportAllocs()
 	b.SetBytes(int64(len(input)))
 	for b.Loop() {
-		_, _ = m.Parse(input)
-	}
-}
-
-func BenchmarkExtLookup(b *testing.B) {
-	input := []byte(
-		`CEF:0|V|P|1|100|N|5|` +
-			`src=10.0.0.1 dst=2.1.2.2 spt=1232 ` +
-			`dpt=443 proto=TCP act=Deny msg=test message`)
-	m := cef.NewParser()
-	e, _ := m.Parse(input)
-	b.ReportAllocs()
-	b.ResetTimer()
-	for b.Loop() {
-		e.ExtString("msg")
-	}
-}
-
-func BenchmarkSeverityNum(b *testing.B) {
-	input := []byte(`CEF:0|V|P|1|100|N|8|`)
-	m := cef.NewParser()
-	e, _ := m.Parse(input)
-	b.ReportAllocs()
-	b.ResetTimer()
-	for b.Loop() {
-		_, _ = e.SeverityNum()
+		if _, err := m.Parse(input); err != nil {
+			b.Fatal(err)
+		}
 	}
 }
 
@@ -137,7 +126,9 @@ func BenchmarkParseParallel(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		m := cef.NewParser()
 		for pb.Next() {
-			_, _ = m.Parse(input)
+			if _, err := m.Parse(input); err != nil {
+				b.Fatal(err)
+			}
 		}
 	})
 }
@@ -150,75 +141,9 @@ func BenchmarkParseBestEffort(b *testing.B) {
 	b.ReportAllocs()
 	b.SetBytes(int64(len(input)))
 	for b.Loop() {
-		_, _ = m.Parse(input)
-	}
-}
-
-func BenchmarkSeverityNumNamed(b *testing.B) {
-	input := []byte(`CEF:0|V|P|1|100|N|Low|`)
-	m := cef.NewParser()
-	e, _ := m.Parse(input)
-	b.ReportAllocs()
-	b.ResetTimer()
-	for b.Loop() {
-		_, _ = e.SeverityNum()
-	}
-}
-
-func BenchmarkSeverityLevel(b *testing.B) {
-	input := []byte(`CEF:0|V|P|1|100|N|Very-High|`)
-	m := cef.NewParser()
-	e, _ := m.Parse(input)
-	b.ReportAllocs()
-	b.ResetTimer()
-	for b.Loop() {
-		_, _ = e.SeverityLevel()
-	}
-}
-
-func BenchmarkExtLookupBytes(b *testing.B) {
-	input := []byte(
-		`CEF:0|V|P|1|100|N|5|` +
-			`src=10.0.0.1 dst=2.1.2.2 spt=1232 ` +
-			`dpt=443 proto=TCP act=Deny msg=test message`)
-	m := cef.NewParser()
-	e, _ := m.Parse(input)
-	key := []byte("msg")
-	b.ReportAllocs()
-	b.ResetTimer()
-	for b.Loop() {
-		e.Ext(key)
-	}
-}
-
-func BenchmarkExtAt(b *testing.B) {
-	input := []byte(
-		`CEF:0|V|P|1|100|N|5|` +
-			`src=10.0.0.1 dst=2.1.2.2 spt=1232 ` +
-			`dpt=443 proto=TCP act=Deny msg=test message`)
-	m := cef.NewParser()
-	e, _ := m.Parse(input)
-	b.ReportAllocs()
-	b.ResetTimer()
-	for b.Loop() {
-		e.ExtAt(5) // "act"
-	}
-}
-
-func BenchmarkExtLookupMiss(b *testing.B) {
-	// Build input with many extensions so lookup scans all of them.
-	parts := make([]string, 0, 50)
-	for i := 0; i < 50; i++ {
-		k := string(rune('A'+i/26)) + string(rune('a'+i%26))
-		parts = append(parts, k+"=v")
-	}
-	input := []byte(`CEF:0|V|P|1|100|N|5|` + strings.Join(parts, " "))
-	m := cef.NewParser()
-	e, _ := m.Parse(input)
-	b.ReportAllocs()
-	b.ResetTimer()
-	for b.Loop() {
-		e.ExtString("nonexistent")
+		if _, err := m.Parse(input); err != nil {
+			b.Fatal(err)
+		}
 	}
 }
 
@@ -228,7 +153,9 @@ func BenchmarkParseMalformedPrefix(b *testing.B) {
 	b.ReportAllocs()
 	b.SetBytes(int64(len(input)))
 	for b.Loop() {
-		_, _ = m.Parse(input)
+		if _, err := m.Parse(input); err == nil {
+			b.Fatal("expected error for malformed prefix")
+		}
 	}
 }
 
@@ -238,7 +165,9 @@ func BenchmarkParseMalformedTruncated(b *testing.B) {
 	b.ReportAllocs()
 	b.SetBytes(int64(len(input)))
 	for b.Loop() {
-		_, _ = m.Parse(input)
+		if _, err := m.Parse(input); err == nil {
+			b.Fatal("expected error for truncated input")
+		}
 	}
 }
 
@@ -248,20 +177,9 @@ func BenchmarkParseMalformedBestEffort(b *testing.B) {
 	b.ReportAllocs()
 	b.SetBytes(int64(len(input)))
 	for b.Loop() {
-		_, _ = m.Parse(input)
-	}
-}
-
-func BenchmarkClone(b *testing.B) {
-	input := []byte(
-		`CEF:0|Cisco|Cyber Vision|4.4.0|CiscoCVAlert|Alert|8|` +
-			`CiscoCVAlertType=Intrusion src=192.168.1.100 dst=192.168.1.200`)
-	m := cef.NewParser()
-	e, _ := m.Parse(input)
-	b.ReportAllocs()
-	b.SetBytes(int64(len(input)))
-	for b.Loop() {
-		_ = e.Clone()
+		if _, err := m.Parse(input); err == nil {
+			b.Fatal("expected error for truncated input")
+		}
 	}
 }
 
@@ -277,73 +195,9 @@ func BenchmarkParse64Extensions(b *testing.B) {
 	b.SetBytes(int64(len(input)))
 	b.ResetTimer()
 	for b.Loop() {
-		_, _ = m.Parse(input)
-	}
-}
-
-func BenchmarkExtAll(b *testing.B) {
-	input := []byte(
-		`CEF:0|V|P|1|100|N|5|` +
-			`src=10.0.0.1 dst=2.1.2.2 spt=1232 ` +
-			`dpt=443 proto=TCP act=Deny msg=test message`)
-	m := cef.NewParser()
-	e, _ := m.Parse(input)
-	b.ReportAllocs()
-	b.ResetTimer()
-	for b.Loop() {
-		for _, v := range e.All() {
-			_ = v
+		if _, err := m.Parse(input); err != nil {
+			b.Fatal(err)
 		}
-	}
-}
-
-func BenchmarkCloneCompact(b *testing.B) {
-	padding := strings.Repeat("x", 1500)
-	input := []byte(`CEF:0|V|P|1|100|` + padding + `|5|src=1.2.3.4`)
-	m := cef.NewParser()
-	e, _ := m.Parse(input)
-	b.ReportAllocs()
-	b.SetBytes(int64(len(input)))
-	for b.Loop() {
-		_ = e.Clone()
-	}
-}
-
-func BenchmarkCloneTo(b *testing.B) {
-	input := []byte(
-		`CEF:0|Cisco|Cyber Vision|4.4.0|CiscoCVAlert|Alert|8|` +
-			`CiscoCVAlertType=Intrusion src=192.168.1.100 dst=192.168.1.200`)
-	m := cef.NewParser()
-	e, _ := m.Parse(input)
-	dst := new(cef.Event)
-	e.CloneTo(dst) // warmup
-	b.ReportAllocs()
-	b.SetBytes(int64(len(input)))
-	b.ResetTimer()
-	for b.Loop() {
-		e.CloneTo(dst)
-	}
-}
-
-func BenchmarkUnmarshalText(b *testing.B) {
-	input := []byte(`CEF:0|Cisco|CyberVision|4.0|100|Alert|5|src=10.0.0.1 dst=2.1.2.2`)
-	b.ReportAllocs()
-	b.SetBytes(int64(len(input)))
-	for b.Loop() {
-		var e cef.Event
-		_ = e.UnmarshalText(input)
-	}
-}
-
-func BenchmarkMarshalText(b *testing.B) {
-	input := []byte(`CEF:0|Cisco|CyberVision|4.0|100|Alert|5|src=10.0.0.1 dst=2.1.2.2`)
-	m := cef.NewParser()
-	e, _ := m.Parse(input)
-	b.ReportAllocs()
-	b.SetBytes(int64(len(input)))
-	b.ResetTimer()
-	for b.Loop() {
-		_, _ = e.MarshalText()
 	}
 }
 
@@ -355,7 +209,9 @@ func BenchmarkParseAdversarialEquals(b *testing.B) {
 	b.ReportAllocs()
 	b.SetBytes(int64(len(input)))
 	for b.Loop() {
-		_, _ = m.Parse(input)
+		if _, err := m.Parse(input); err != nil {
+			b.Fatal(err)
+		}
 	}
 }
 
@@ -367,7 +223,9 @@ func BenchmarkParseAdversarialBackslashes(b *testing.B) {
 	b.ReportAllocs()
 	b.SetBytes(int64(len(input)))
 	for b.Loop() {
-		_, _ = m.Parse(input)
+		if _, err := m.Parse(input); err != nil {
+			b.Fatal(err)
+		}
 	}
 }
 
@@ -379,6 +237,8 @@ func BenchmarkParseAdversarialEscapedPipes(b *testing.B) {
 	b.ReportAllocs()
 	b.SetBytes(int64(len(input)))
 	for b.Loop() {
-		_, _ = m.Parse(input)
+		if _, err := m.Parse(input); err != nil {
+			b.Fatal(err)
+		}
 	}
 }

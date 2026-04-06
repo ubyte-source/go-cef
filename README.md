@@ -172,6 +172,7 @@ See the [package documentation](https://pkg.go.dev/github.com/ubyte-source/go-ce
 |----------|-------------|
 | `NewParser(opts ...ParserOption) *Parser` | Create a reusable parser |
 | `(*Parser).Parse([]byte) (*Event, error)` | Parse a CEF message (zero-alloc) |
+| `(*Parser).ParseString(string) (*Event, error)` | Parse a CEF string (convenience wrapper) |
 | `WithBestEffort() ParserOption` | Return partial results on error |
 | `WithMaxExtensions(int) ParserOption` | Limit extension count |
 
@@ -181,6 +182,7 @@ See the [package documentation](https://pkg.go.dev/github.com/ubyte-source/go-ce
 |--------|-------------|
 | `(*Event).Bytes(Span) []byte` | Raw bytes for a span |
 | `(*Event).Text(Span) string` | String for a span |
+| `(*Event).AppendBytes([]byte, Span) []byte` | Append span bytes to dst (zero-alloc) |
 | `(*Event).Ext([]byte) (Span, bool)` | Extension lookup by `[]byte` key |
 | `(*Event).ExtString(string) (Span, bool)` | Extension lookup by `string` key (preferred) |
 | `(*Event).ExtAt(int) (ExtPair, bool)` | Extension by index |
@@ -307,7 +309,7 @@ Supports CEF:0 (spec 0.1), CEF:1 (spec 1.x), and future versions.
 ## 🧠 Design Principles
 
 1. **One type, one job.** `Parser` parses. `Event` contains. Clear responsibilities.
-2. **The interface is the contract.** Same pattern as `go-syslog`: `Parser` + `Message` + `ParserOption`.
+2. **The type is the contract.** `Parser` parses. `Event` contains. `ParserOption` configures.
 3. **Zero-alloc is a constraint, not a goal.** No allocations in the hot path — enforced by benchmarks.
 4. **The parser eats everything.** If a device sends `CEF:`, we parse it.
 5. **Errors as values, not surprises.** Position and reason in every error.
@@ -317,7 +319,7 @@ Supports CEF:0 (spec 0.1), CEF:1 (spec 1.x), and future versions.
 ```
 go-cef/
 ├── cef.go              # Types: Parser, Event, Span, ExtPair, Clone, Marshal
-├── parse.go            # Parse, parseVersion, parseHeaderFields, scanField
+├── parse.go            # Parse, ParseString, parseVersion, parseHeaderFields, scanField
 ├── extensions.go       # Extension key=value parsing
 ├── unescape.go         # Unescape helpers for header and extension values
 ├── errors.go           # Error types with positional information
