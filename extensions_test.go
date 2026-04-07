@@ -34,7 +34,7 @@ func TestIsKeyBitsetCorrectness(t *testing.T) {
 	for _, c := range []byte{'.', '_', '-', '[', ']'} {
 		ref[c] = true
 	}
-	for i := 0; i < 256; i++ {
+	for i := range 256 {
 		got := isKeyChar(byte(i))
 		want := ref[i]
 		if got != want {

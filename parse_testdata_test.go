@@ -73,7 +73,7 @@ func assertVendorFile(t *testing.T, m *Parser, file string) {
 		_ = e.Text(e.Name)
 		_, _ = e.SeverityNum()
 		// Ensure all extensions are accessible.
-		for j := 0; j < e.ExtCount; j++ {
+		for j := range e.ExtCount {
 			_ = e.Bytes(e.exts[j].Key)
 			_ = e.Bytes(e.exts[j].Value)
 		}

@@ -252,7 +252,7 @@ func TestParseLargeBuffer(t *testing.T) {
 func TestParseMaxExtensions(t *testing.T) {
 	m := NewParser()
 	parts := make([]string, 0, MaxExtensions)
-	for i := 0; i < MaxExtensions; i++ {
+	for i := range MaxExtensions {
 		parts = append(parts, "k"+string(rune('A'+i/26))+string(rune('a'+i%26))+"=v")
 	}
 	input := []byte(`CEF:0|V|P|1|100|N|5|` + strings.Join(parts, " "))

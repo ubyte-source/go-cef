@@ -286,21 +286,13 @@ func (e *Event) usedRange() (lo, hi uint32) {
 	hi = 0
 	for _, s := range [...]Span{e.Vendor, e.Product, e.DevVersion, e.ClassID, e.Name, e.Severity} {
 		if !s.IsEmpty() {
-			if s.Start < lo {
-				lo = s.Start
-			}
-			if s.End > hi {
-				hi = s.End
-			}
+			lo = min(lo, s.Start)
+			hi = max(hi, s.End)
 		}
 	}
 	if e.ExtCount > 0 {
-		if e.exts[0].Key.Start < lo {
-			lo = e.exts[0].Key.Start
-		}
-		if e.exts[e.ExtCount-1].Value.End > hi {
-			hi = e.exts[e.ExtCount-1].Value.End
-		}
+		lo = min(lo, e.exts[0].Key.Start)
+		hi = max(hi, e.exts[e.ExtCount-1].Value.End)
 	}
 	if lo >= hi {
 		return 0, 0

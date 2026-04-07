@@ -92,8 +92,8 @@ func isEscapedEquals(data []byte, eq, minPos uint32) bool {
 // Returns the space position and true if a valid key is found.
 func findKeyBeforeEquals(data []byte, i, eq uint32) (uint32, bool) {
 	limit := i
-	if eq > maxKeyLen && eq-maxKeyLen > limit {
-		limit = eq - maxKeyLen
+	if eq > maxKeyLen {
+		limit = max(i, eq-maxKeyLen)
 	}
 	spIdx := bytes.LastIndexByte(data[limit:eq], ' ')
 	if spIdx < 0 {

@@ -53,7 +53,7 @@ func exerciseEvent(e *Event) {
 	if !e.Product.IsEmpty() {
 		_ = e.Text(e.Product)
 	}
-	for i := 0; i < e.ExtCount; i++ {
+	for i := range e.ExtCount {
 		_ = e.Bytes(e.exts[i].Key)
 		_ = e.Bytes(e.exts[i].Value)
 	}

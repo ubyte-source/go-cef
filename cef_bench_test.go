@@ -62,7 +62,7 @@ func BenchmarkExtAt(b *testing.B) {
 func BenchmarkExtLookupMiss(b *testing.B) {
 	// Build input with many extensions so lookup scans all of them.
 	parts := make([]string, 0, 50)
-	for i := 0; i < 50; i++ {
+	for i := range 50 {
 		k := string(rune('A'+i/26)) + string(rune('a'+i%26))
 		parts = append(parts, k+"=v")
 	}

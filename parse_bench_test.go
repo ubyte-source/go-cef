@@ -185,7 +185,7 @@ func BenchmarkParseMalformedBestEffort(b *testing.B) {
 
 func BenchmarkParse64Extensions(b *testing.B) {
 	parts := make([]string, 0, 64)
-	for i := 0; i < 64; i++ {
+	for i := range 64 {
 		k := string(rune('A'+i/26)) + string(rune('a'+i%26))
 		parts = append(parts, k+"=value"+string(rune('0'+i%10)))
 	}
