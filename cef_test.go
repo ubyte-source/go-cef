@@ -498,7 +498,7 @@ func TestCloneToZeroAlloc(t *testing.T) {
 }
 
 // assertSpansEmpty checks that all given spans are empty.
-func assertSpansEmpty(t *testing.T, _ *Event, spans map[string]Span) {
+func assertSpansEmpty(t *testing.T, spans map[string]Span) {
 	t.Helper()
 	for name, s := range spans {
 		if !s.IsEmpty() {
@@ -522,7 +522,7 @@ func TestCloneBestEffortPartialHeader(t *testing.T) {
 	}
 	assertSpan(t, c, c.Vendor, "Vendor")
 	assertSpan(t, c, c.Product, "Product")
-	assertSpansEmpty(t, c, map[string]Span{
+	assertSpansEmpty(t, map[string]Span{
 		"DevVersion": c.DevVersion,
 		"ClassID":    c.ClassID,
 		"Name":       c.Name,

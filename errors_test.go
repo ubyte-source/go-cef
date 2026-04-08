@@ -80,10 +80,13 @@ func TestWithMaxExtensionsPanicOver64(t *testing.T) {
 	WithMaxExtensions(65)
 }
 
-func TestWithMaxExtensionsValidBounds(_ *testing.T) {
-	_ = WithMaxExtensions(1)
-	_ = WithMaxExtensions(32)
-	_ = WithMaxExtensions(64)
+func TestWithMaxExtensionsValidBounds(t *testing.T) {
+	for _, n := range []int{1, 32, 64} {
+		p := NewParser(WithMaxExtensions(n))
+		if p == nil {
+			t.Fatalf("NewParser(WithMaxExtensions(%d)) returned nil", n)
+		}
+	}
 }
 
 func TestParseErrorPosition(t *testing.T) {
