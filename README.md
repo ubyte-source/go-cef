@@ -3,6 +3,8 @@
 > A zero-allocation CEF (Common Event Format) parser for Go.
 
 [![Go Version](https://img.shields.io/badge/Go-1.25+-blue.svg)](https://golang.org)
+[![CI](https://github.com/ubyte-source/go-cef/actions/workflows/ci.yml/badge.svg)](https://github.com/ubyte-source/go-cef/actions/workflows/ci.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/ubyte-source/go-cef)](https://goreportcard.com/report/github.com/ubyte-source/go-cef)
 [![Go Reference](https://pkg.go.dev/badge/github.com/ubyte-source/go-cef.svg)](https://pkg.go.dev/github.com/ubyte-source/go-cef)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-green.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Zero Dependencies](https://img.shields.io/badge/Dependencies-0-brightgreen.svg)](go.mod)
