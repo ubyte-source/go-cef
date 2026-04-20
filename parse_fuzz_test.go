@@ -54,8 +54,9 @@ func exerciseEvent(e *Event) {
 		_ = e.Text(e.Product)
 	}
 	for i := range e.ExtCount {
-		_ = e.Bytes(e.exts[i].Key)
-		_ = e.Bytes(e.exts[i].Value)
+		p, _ := e.ExtAt(i)
+		_ = e.Bytes(p.Key)
+		_ = e.Bytes(p.Value)
 	}
 	_, _ = e.ExtString("src")
 	_, _ = e.Ext([]byte("dst"))

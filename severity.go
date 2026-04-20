@@ -1,11 +1,8 @@
 package cef
 
-import "bytes"
-
-// SeverityNum returns the numeric severity (0–10) for the parsed event.
-// Named severities: Low=3, Medium=6, High=8, Very-High=10.
-// Returns ([SeverityUnknown], true) for "Unknown".
-// Returns (0, false) if the severity is invalid.
+// SeverityNum returns the numeric severity (0-10) for the parsed event.
+// Named severities: Low=3, Medium=6, High=8, Very-High=10, Unknown=-1.
+// Returns (0, false) if the severity field is invalid.
 func (e *Event) SeverityNum() (int, bool) {
 	b := e.severityBytes()
 	if b == nil {
@@ -47,12 +44,15 @@ func (e *Event) severityBytes() []byte {
 }
 
 func parseDigitSeverity(b []byte) (int, bool) {
-	n := len(b)
-	if n == 1 && b[0] >= '0' && b[0] <= '9' {
-		return int(b[0] - '0'), true
-	}
-	if n == 2 && b[0] == '1' && b[1] == '0' {
-		return 10, true
+	switch len(b) {
+	case 1:
+		if b[0] >= '0' && b[0] <= '9' {
+			return int(b[0] - '0'), true
+		}
+	case 2:
+		if b[0] == '1' && b[1] == '0' {
+			return 10, true
+		}
 	}
 	return 0, false
 }
@@ -67,36 +67,63 @@ func numToSeverityLevel(num int) string {
 		return "Medium"
 	case num <= 8:
 		return "High"
-	default:
-		return "Very-High"
 	}
+	return "Very-High"
 }
 
-type namedSev struct {
-	canonical string
-	num       int
-}
-
-// namedSeverityByLen maps byte-length to the sole named severity of that length.
-var namedSeverityByLen = [10]namedSev{
-	3: {"Low", 3},
-	4: {"High", 8},
-	6: {"Medium", 6},
-	7: {"Unknown", SeverityUnknown},
-	9: {"Very-High", 10},
-}
-
+// matchNamedSeverity dispatches by length and delegates the byte comparison.
 func matchNamedSeverity(b []byte) (name string, num int) {
-	n := len(b)
-	if n >= len(namedSeverityByLen) {
-		return "", 0
+	switch len(b) {
+	case 3:
+		return matchLow(b)
+	case 4:
+		return matchHigh(b)
+	case 6:
+		return matchMedium(b)
+	case 7:
+		return matchUnknown(b)
+	case 9:
+		return matchVeryHigh(b)
 	}
-	entry := namedSeverityByLen[n]
-	if entry.canonical == "" {
-		return "", 0
+	return "", 0
+}
+
+// OR by 0x20 folds ASCII uppercase to lowercase; '-' and digits are preserved.
+func matchLow(b []byte) (name string, num int) {
+	if b[0]|0x20 == 'l' && b[1]|0x20 == 'o' && b[2]|0x20 == 'w' {
+		return "Low", 3
 	}
-	if bytes.EqualFold(b, []byte(entry.canonical)) {
-		return entry.canonical, entry.num
+	return "", 0
+}
+
+func matchHigh(b []byte) (name string, num int) {
+	if b[0]|0x20 == 'h' && b[1]|0x20 == 'i' && b[2]|0x20 == 'g' && b[3]|0x20 == 'h' {
+		return "High", 8
+	}
+	return "", 0
+}
+
+func matchMedium(b []byte) (name string, num int) {
+	if b[0]|0x20 == 'm' && b[1]|0x20 == 'e' && b[2]|0x20 == 'd' &&
+		b[3]|0x20 == 'i' && b[4]|0x20 == 'u' && b[5]|0x20 == 'm' {
+		return "Medium", 6
+	}
+	return "", 0
+}
+
+func matchUnknown(b []byte) (name string, num int) {
+	if b[0]|0x20 == 'u' && b[1]|0x20 == 'n' && b[2]|0x20 == 'k' && b[3]|0x20 == 'n' &&
+		b[4]|0x20 == 'o' && b[5]|0x20 == 'w' && b[6]|0x20 == 'n' {
+		return "Unknown", SeverityUnknown
+	}
+	return "", 0
+}
+
+func matchVeryHigh(b []byte) (name string, num int) {
+	if b[4] == '-' &&
+		b[0]|0x20 == 'v' && b[1]|0x20 == 'e' && b[2]|0x20 == 'r' && b[3]|0x20 == 'y' &&
+		b[5]|0x20 == 'h' && b[6]|0x20 == 'i' && b[7]|0x20 == 'g' && b[8]|0x20 == 'h' {
+		return "Very-High", 10
 	}
 	return "", 0
 }

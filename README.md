@@ -9,7 +9,7 @@
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-green.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Zero Dependencies](https://img.shields.io/badge/Dependencies-0-brightgreen.svg)](go.mod)
 
-## 🏗 Architecture Overview
+## Architecture Overview
 
 ```mermaid
 graph TB
@@ -54,21 +54,21 @@ graph TB
     Event --> Marshal
 ```
 
-## ✨ Key Features
+## Key Features
 
-- 🚀 **Zero Allocations** — all fields are `Span` (offset pairs) into the original buffer — no copies on the hot path
-- 🧱 **Pure Go** — no external dependencies, no code generation, no cgo
-- 📋 **Spec-Compliant** — tested against every rule and example from the CEF v26 specification
-- 🛡️ **DoS-Resistant** — bounded scanning budgets, max key length, input size limits
-- 🏭 **Multi-Vendor** — tested with 35+ vendor products from Cisco, Check Point, Palo Alto, and more
-- 🩹 **BestEffort Mode** — returns partial results for malformed input
-- 🔩 **Concrete Types** — `*Parser` and `*Event` are exported structs, no interfaces
-- 🧬 **Fuzz-Tested** — continuous Go native fuzzing with 40+ seed corpus entries
-- ⚔️ **Adversarial Benchmarks** — pathological inputs benchmarked, no O(n²) degradation
+- **Zero Allocations** — all fields are `Span` (offset pairs) into the original buffer — no copies on the hot path
+- **Pure Go** — no external dependencies, no code generation, no cgo
+- **Spec-Compliant** — tested against every rule and example from the CEF v26 specification
+- **DoS-Resistant** — bounded scanning budgets, max key length, input size limits
+- **Multi-Vendor** — tested with 35+ vendor products from Cisco, Check Point, Palo Alto, and more
+- **BestEffort Mode** — returns partial results for malformed input
+- **Concrete Types** — `*Parser` and `*Event` are exported structs, no interfaces
+- **Fuzz-Tested** — continuous Go native fuzzing with 40+ seed corpus entries
+- **Adversarial Benchmarks** — pathological inputs benchmarked, no O(n²) degradation
 
-## 🚀 Quick Start
+## Quick Start
 
-### 📦 Installation
+### Installation
 
 ```bash
 go get github.com/ubyte-source/go-cef
@@ -76,7 +76,7 @@ go get github.com/ubyte-source/go-cef
 
 Requires **Go 1.25+**.
 
-### 💡 Basic Usage
+### Basic Usage
 
 ```go
 package main
@@ -110,7 +110,7 @@ func main() {
 }
 ```
 
-## 🩹 BestEffort Mode
+## BestEffort Mode
 
 ```go
 p := cef.NewParser(cef.WithBestEffort())
@@ -121,7 +121,7 @@ if e != nil {
 }
 ```
 
-## 🔓 Unescaping
+## Unescaping
 
 The parser returns raw `Span`s that include escape sequences (e.g., `\|`, `\\`, `\=`, `\n`).
 This is by design: zero-alloc parsing means no copies. When you need the unescaped value,
@@ -142,7 +142,7 @@ dst := make([]byte, 0, 256)
 dst = cef.UnescapeExtValue(e.Bytes(span), dst)
 ```
 
-## 📌 Retaining Results
+## Retaining Results
 
 The `*Event` returned by `Parse` is reused on the next call on the same `Parser`.
 To retain a result beyond the next parse call, clone it:
@@ -164,7 +164,7 @@ pool.Put(dst)
 
 `Clone` allocates a compact buffer covering only the referenced byte range, not the entire original input.
 
-## 📖 API Reference
+## API Reference
 
 See the [package documentation](https://pkg.go.dev/github.com/ubyte-source/go-cef) for the full API.
 
@@ -228,7 +228,7 @@ See the [package documentation](https://pkg.go.dev/github.com/ubyte-source/go-ce
 | `ErrExtOverflow` | Too many extensions |
 | `ErrInputTooLarge` | Input exceeds 4 GiB |
 
-## ⚡ Benchmarks
+## Benchmarks
 
 Run with:
 ```bash
@@ -238,7 +238,7 @@ make bench
 Target: **0 allocs/op** on all successful parse benchmarks, **>400 MB/s** throughput (typically 600–900 MB/s).
 Error paths allocate one `ParseError` (24 bytes) per call.
 
-## 🧪 Testing
+## Testing
 
 ```bash
 make test        # All tests with race detector
@@ -248,7 +248,7 @@ make cover       # Coverage report
 make lint        # golangci-lint (25 linters, ultra-strict)
 ```
 
-## 🏭 Tested Vendors
+## Tested Vendors
 
 | Vendor | Product | Testdata |
 |--------|---------|----------|
@@ -288,7 +288,7 @@ make lint        # golangci-lint (25 linters, ultra-strict)
 | WithSecure | EDR | ✓ |
 | Zscaler | ZIA | ✓ |
 
-## 🛡️ Security
+## Security
 
 The parser enforces bounds to prevent resource exhaustion:
 
@@ -301,14 +301,14 @@ The parser enforces bounds to prevent resource exhaustion:
 
 For security policy and vulnerability reporting, see [SECURITY.md](SECURITY.md).
 
-## 📜 Specification
+## Specification
 
 Based on: _"Implementing ArcSight Common Event Format (CEF) — Version 26"_
 (OpenText, October 2023).
 
 Supports CEF:0 (spec 0.1), CEF:1 (spec 1.x), and future versions.
 
-## 🧠 Design Principles
+## Design Principles
 
 1. **One type, one job.** `Parser` parses. `Event` contains. Clear responsibilities.
 2. **The type is the contract.** `Parser` parses. `Event` contains. `ParserOption` configures.
@@ -316,7 +316,7 @@ Supports CEF:0 (spec 0.1), CEF:1 (spec 1.x), and future versions.
 4. **The parser eats everything.** If a device sends `CEF:`, we parse it.
 5. **Errors as values, not surprises.** Position and reason in every error.
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 go-cef/
@@ -334,7 +334,7 @@ go-cef/
 └── LICENSE             # Apache 2.0
 ```
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome. Please fork the repository, create a feature branch, and submit a pull request.
 
@@ -342,25 +342,25 @@ For contribution guidelines, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ---
 
-## 🔖 Versioning
+## Versioning
 
 We use [SemVer](https://semver.org/) for versioning. For available versions, see the [tags on this repository](https://github.com/ubyte-source/go-cef/tags).
 
 ---
 
-## 👤 Authors
+## Authors
 
 - **Paolo Fabris** — _Initial work_ — [ubyte.it](https://ubyte.it/)
 
 See also the list of [contributors](https://github.com/ubyte-source/go-cef/contributors) who participated in this project.
 
-## 📄 License
+## License
 
 This project is licensed under the Apache License 2.0 — see the [LICENSE](LICENSE) file for details.
 
 ---
 
-## ☕ Support This Project
+## Support This Project
 
 If go-cef has been useful for your SIEM pipeline or security projects, consider supporting its development:
 

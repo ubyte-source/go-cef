@@ -20,9 +20,9 @@ var extEscapes = func() escapeTable {
 	return t
 }()
 
-// UnescapeHeader unescapes a CEF header field value (\| → |, \\ → \).
-// If dst has sufficient capacity it is reused; otherwise a new buffer is allocated.
-// Returns the original slice unchanged if no escape sequences are present.
+// UnescapeHeader unescapes a CEF header field value (\| -> |, \\ -> \).
+// Returns raw unchanged if no '\' is present. Otherwise writes into dst
+// (reused when cap is sufficient) and returns the new slice.
 func UnescapeHeader(raw, dst []byte) []byte {
 	if bytes.IndexByte(raw, '\\') < 0 {
 		return raw
@@ -30,9 +30,8 @@ func UnescapeHeader(raw, dst []byte) []byte {
 	return unescape(raw, dst, &headerEscapes)
 }
 
-// UnescapeExtValue unescapes a CEF extension value (\= → =, \\ → \, \n → LF, \r → CR).
-// If dst has sufficient capacity it is reused; otherwise a new buffer is allocated.
-// Returns the original slice unchanged if no escape sequences are present.
+// UnescapeExtValue unescapes a CEF extension value
+// (\= -> =, \\ -> \, \n -> LF, \r -> CR).
 func UnescapeExtValue(raw, dst []byte) []byte {
 	if bytes.IndexByte(raw, '\\') < 0 {
 		return raw

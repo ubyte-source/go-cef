@@ -246,7 +246,8 @@ func TestUsedRangeExtensionsOnly(t *testing.T) {
 		raw:      []byte("key=value"),
 		ExtCount: 1,
 	}
-	e.exts[0] = ExtPair{Key: Span{0, 3}, Value: Span{4, 9}}
+	e.extKeys[0] = Span{0, 3}
+	e.extVals[0] = Span{4, 9}
 	lo, hi := e.usedRange()
 	if lo != 0 || hi != 9 {
 		t.Errorf("usedRange: got [%d, %d), want [0, 9)", lo, hi)

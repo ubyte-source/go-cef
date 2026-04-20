@@ -2,79 +2,69 @@ package cef
 
 import (
 	"bytes"
+	"encoding/binary"
+	"errors"
 	"iter"
+	"math"
 	"slices"
 	"strconv"
 	"strings"
 )
 
-// MaxExtensions is the hard limit on extension key-value pairs per event.
-// The extension array is inlined in [Event]; use [WithMaxExtensions] to reduce
-// the effective limit at runtime.
+// MaxExtensions is the hard cap on extension key-value pairs per event.
 const MaxExtensions = 64
 
 // Version is the CEF format version parsed from the "CEF:N" prefix.
 type Version int
 
-// InvalidVersion indicates the version field could not be parsed.
+// InvalidVersion marks a version that could not be parsed.
 const InvalidVersion Version = -1
 
-// String returns the decimal representation. Fast path for 0 and 1.
+// String returns the decimal representation.
 func (v Version) String() string {
 	switch v {
 	case 0:
 		return "0"
 	case 1:
 		return "1"
-	default:
-		return strconv.Itoa(int(v))
 	}
+	return strconv.Itoa(int(v))
 }
 
-// Parser is a reusable CEF parser.
-//
-// Not safe for concurrent use. The *Event returned by [Parser.Parse] is valid
-// until the next Parse call; use [Event.Clone] to retain a copy.
+// Parser is a reusable CEF parser. Not safe for concurrent use.
+// The *Event returned by Parse is valid until the next Parse call.
 type Parser struct {
-	// parseErr and msg are placed first: both contain pointer fields
-	// (error interface and []byte respectively), minimizing GC pointer bytes.
 	parseErr      ParseError
 	msg           Event
 	bestEffort    bool
 	maxExtensions int
 }
 
-// ParserOption configures a [Parser].
+// ParserOption configures a Parser.
 type ParserOption func(*Parser)
 
 // NewParser creates a new CEF parser.
 func NewParser(opts ...ParserOption) *Parser {
-	m := &Parser{
-		maxExtensions: MaxExtensions,
-	}
+	p := &Parser{maxExtensions: MaxExtensions}
 	for _, opt := range opts {
-		opt(m)
+		opt(p)
 	}
-	return m
+	return p
 }
 
 // WithBestEffort enables best-effort mode: partial results are returned
 // alongside errors.
 func WithBestEffort() ParserOption {
-	return func(m *Parser) {
-		m.bestEffort = true
-	}
+	return func(p *Parser) { p.bestEffort = true }
 }
 
-// WithMaxExtensions limits the number of extensions parsed.
+// WithMaxExtensions caps the number of extensions parsed.
 // n must be in [1, MaxExtensions]; panics otherwise.
 func WithMaxExtensions(n int) ParserOption {
 	if n < 1 || n > MaxExtensions {
-		panic("cef: WithMaxExtensions: n (" + strconv.Itoa(n) + ") out of range [1, " + strconv.Itoa(MaxExtensions) + "]")
+		panic("cef: WithMaxExtensions: n out of range [1, " + strconv.Itoa(MaxExtensions) + "]")
 	}
-	return func(m *Parser) {
-		m.maxExtensions = n
-	}
+	return func(p *Parser) { p.maxExtensions = n }
 }
 
 // Span identifies a substring in the original buffer: [Start, End).
@@ -83,7 +73,7 @@ type Span struct {
 	End   uint32
 }
 
-// Len returns the length. Returns 0 if inverted.
+// Len returns the length, or 0 if inverted.
 func (s Span) Len() uint32 {
 	if s.End < s.Start {
 		return 0
@@ -91,14 +81,16 @@ func (s Span) Len() uint32 {
 	return s.End - s.Start
 }
 
-// IsEmpty returns true if the span has no content.
-func (s Span) IsEmpty() bool {
-	return s.Start >= s.End
-}
+// IsEmpty reports whether the span has no content.
+func (s Span) IsEmpty() bool { return s.Start >= s.End }
 
 // String returns a debug representation "[Start:End]".
 func (s Span) String() string {
-	return "[" + strconv.FormatUint(uint64(s.Start), 10) + ":" + strconv.FormatUint(uint64(s.End), 10) + "]"
+	var buf [24]byte
+	b := strconv.AppendUint(buf[:0], uint64(s.Start), 10)
+	b = append(b, ':')
+	b = strconv.AppendUint(b, uint64(s.End), 10)
+	return "[" + string(b) + "]"
 }
 
 // ExtPair is a key-value pair in the extension section.
@@ -108,24 +100,12 @@ type ExtPair struct {
 }
 
 // String returns a debug representation.
-func (p ExtPair) String() string {
-	return p.Key.String() + "=" + p.Value.String()
-}
+func (p ExtPair) String() string { return p.Key.String() + "=" + p.Value.String() }
 
-// Event is the result of parsing a CEF message. All fields are [Span]
+// Event is the result of parsing a CEF message. All fields are Span
 // offsets into the original input buffer — no strings are copied.
-//
-// The Event holds a reference to the original input; the buffer cannot be
-// GC'd while the Event is alive. For long-lived events, use [Event.Clone].
-//
-// Copying an Event by value shares the underlying buffer with the
-// original. Use [Event.Clone] or [Event.CloneTo] for independent copies.
-//
-// The struct is approximately 1.1 KiB due to the inlined extension array
-// ([MaxExtensions] × 16 bytes). Keep this in mind when sizing stack frames
-// or embedding Event in other structures.
+// Copying an Event by value shares the underlying buffer.
 type Event struct {
-	// raw is placed first to minimize GC pointer bytes in the struct layout.
 	raw []byte
 
 	Version    Version
@@ -139,16 +119,17 @@ type Event struct {
 	ExtCount       int
 	headerComplete bool
 
-	exts [MaxExtensions]ExtPair
+	extKeys  [MaxExtensions]Span
+	extVals  [MaxExtensions]Span
+	extPacks [MaxExtensions]uint32
 }
 
-// Valid returns true if the header was fully parsed.
-func (e *Event) Valid() bool {
-	return e.headerComplete
-}
+// Valid reports whether the header was fully parsed.
+func (e *Event) Valid() bool { return e.headerComplete }
 
-// Reset clears the Event to its zero value.
+// Reset clears the Event to its zero state.
 func (e *Event) Reset() {
+	e.raw = nil
 	e.Version = InvalidVersion
 	e.Vendor = Span{}
 	e.Product = Span{}
@@ -157,12 +138,10 @@ func (e *Event) Reset() {
 	e.Name = Span{}
 	e.Severity = Span{}
 	e.ExtCount = 0
-	e.raw = nil
 	e.headerComplete = false
 }
 
-// Bytes returns the raw bytes for the given Span.
-// Returns nil if out of range.
+// Bytes returns the raw bytes for the given Span, or nil if out of range.
 func (e *Event) Bytes(s Span) []byte {
 	if e.raw == nil || int(s.End) > len(e.raw) || s.Start > s.End {
 		return nil
@@ -170,8 +149,7 @@ func (e *Event) Bytes(s Span) []byte {
 	return e.raw[s.Start:s.End]
 }
 
-// Text returns a string for the given Span.
-// Returns "" if out of range.
+// Text returns a string for the given Span, or "" if out of range.
 func (e *Event) Text(s Span) string {
 	if e.raw == nil || int(s.End) > len(e.raw) || s.Start > s.End {
 		return ""
@@ -179,8 +157,8 @@ func (e *Event) Text(s Span) string {
 	return string(e.raw[s.Start:s.End])
 }
 
-// AppendBytes appends the raw bytes for Span s to dst and returns the
-// extended buffer. Zero-alloc when dst has sufficient capacity.
+// AppendBytes appends the raw bytes for Span s to dst.
+// Zero-alloc when dst has sufficient capacity.
 func (e *Event) AppendBytes(dst []byte, s Span) []byte {
 	if e.raw == nil || int(s.End) > len(e.raw) || s.Start > s.End {
 		return dst
@@ -188,52 +166,65 @@ func (e *Event) AppendBytes(dst []byte, s Span) []byte {
 	return append(dst, e.raw[s.Start:s.End]...)
 }
 
-// Ext looks up an extension by key ([]byte). Zero-alloc.
-// For string keys, prefer [Event.ExtString] which benefits from compiler
-// optimizations and is typically faster.
+// Ext looks up an extension by byte-slice key. Zero-alloc.
 func (e *Event) Ext(key []byte) (Span, bool) {
-	if e.raw == nil {
+	if e.raw == nil || len(key) == 0 {
 		return Span{}, false
 	}
-	for i := range e.exts[:e.ExtCount] {
-		k := e.exts[i].Key
-		if bytes.Equal(e.raw[k.Start:k.End], key) {
-			return e.exts[i].Value, true
+	pack := keyPackBytes(key)
+	keyLen := uint32(len(key) & math.MaxUint32)
+	for i := range e.ExtCount {
+		if e.extPacks[i] != pack {
+			continue
+		}
+		k := e.extKeys[i]
+		if k.End-k.Start != keyLen {
+			continue
+		}
+		if keyLen <= 4 || bytes.Equal(e.raw[k.Start+4:k.End], key[4:]) {
+			return e.extVals[i], true
 		}
 	}
 	return Span{}, false
 }
 
-// ExtString looks up an extension by key (string). Zero-alloc.
+// ExtString looks up an extension by string key. Zero-alloc.
 func (e *Event) ExtString(key string) (Span, bool) {
-	if e.raw == nil {
+	if e.raw == nil || key == "" {
 		return Span{}, false
 	}
-	for i := range e.exts[:e.ExtCount] {
-		k := e.exts[i].Key
-		if string(e.raw[k.Start:k.End]) == key {
-			return e.exts[i].Value, true
+	pack := keyPackString(key)
+	keyLen := uint32(len(key) & math.MaxUint32)
+	for i := range e.ExtCount {
+		if e.extPacks[i] != pack {
+			continue
+		}
+		k := e.extKeys[i]
+		if k.End-k.Start != keyLen {
+			continue
+		}
+		if keyLen <= 4 || string(e.raw[k.Start+4:k.End]) == key[4:] {
+			return e.extVals[i], true
 		}
 	}
 	return Span{}, false
 }
 
-// ExtAt returns the i-th extension pair, or false if out of range.
+// ExtAt returns the i-th extension pair.
 func (e *Event) ExtAt(i int) (ExtPair, bool) {
 	if i < 0 || i >= e.ExtCount {
 		return ExtPair{}, false
 	}
-	return e.exts[i], true
+	return ExtPair{Key: e.extKeys[i], Value: e.extVals[i]}, true
 }
 
 // All returns an iterator over extension key-value pairs.
-//
-// Allocates: ~40 B / 3 allocs per call due to the range-over-func protocol.
-// For zero-alloc iteration, use [Event.ExtAt] in a loop.
+// Allocates ~40 B per call due to the iter.Seq2 protocol;
+// use ExtAt in a loop for zero-alloc iteration.
 func (e *Event) All() iter.Seq2[Span, Span] {
 	return func(yield func(Span, Span) bool) {
-		for i := range e.exts[:e.ExtCount] {
-			if !yield(e.exts[i].Key, e.exts[i].Value) {
+		for i := range e.ExtCount {
+			if !yield(e.extKeys[i], e.extVals[i]) {
 				return
 			}
 		}
@@ -241,7 +232,7 @@ func (e *Event) All() iter.Seq2[Span, Span] {
 }
 
 // Clone returns a deep copy independent of the original input buffer.
-// Only the referenced byte range is copied, not the entire buffer.
+// Only the referenced byte range is copied.
 func (e *Event) Clone() *Event {
 	c := new(Event)
 	*c = *e
@@ -257,7 +248,7 @@ func (e *Event) Clone() *Event {
 }
 
 // CloneTo copies the event into dst, reusing dst's raw buffer when possible.
-// Returns dst for chaining. After warmup, zero allocations.
+// Returns dst for chaining. Zero allocations after warmup.
 func (e *Event) CloneTo(dst *Event) *Event {
 	lo, hi := e.usedRange()
 	raw := dst.raw
@@ -277,22 +268,31 @@ func (e *Event) CloneTo(dst *Event) *Event {
 	return dst
 }
 
-// usedRange returns [lo, hi) covering all non-empty Spans.
 func (e *Event) usedRange() (lo, hi uint32) {
 	if e.raw == nil {
 		return 0, 0
 	}
-	lo = safeU32(len(e.raw))
+	lo = uint32(len(e.raw) & math.MaxUint32)
 	hi = 0
-	for _, s := range [...]Span{e.Vendor, e.Product, e.DevVersion, e.ClassID, e.Name, e.Severity} {
-		if !s.IsEmpty() {
-			lo = min(lo, s.Start)
-			hi = max(hi, s.End)
+	hs := [6]Span{e.Vendor, e.Product, e.DevVersion, e.ClassID, e.Name, e.Severity}
+	for _, s := range hs {
+		if s.IsEmpty() {
+			continue
+		}
+		if s.Start < lo {
+			lo = s.Start
+		}
+		if s.End > hi {
+			hi = s.End
 		}
 	}
 	if e.ExtCount > 0 {
-		lo = min(lo, e.exts[0].Key.Start)
-		hi = max(hi, e.exts[e.ExtCount-1].Value.End)
+		if e.extKeys[0].Start < lo {
+			lo = e.extKeys[0].Start
+		}
+		if end := e.extVals[e.ExtCount-1].End; end > hi {
+			hi = end
+		}
 	}
 	if lo >= hi {
 		return 0, 0
@@ -300,7 +300,6 @@ func (e *Event) usedRange() (lo, hi uint32) {
 	return lo, hi
 }
 
-// rebase shifts all Spans by subtracting offset. Skips empty spans.
 func (e *Event) rebase(offset uint32) {
 	if offset == 0 {
 		return
@@ -312,116 +311,107 @@ func (e *Event) rebase(offset uint32) {
 		s.Start -= offset
 		s.End -= offset
 	}
-	for i := range e.exts[:e.ExtCount] {
-		e.exts[i].Key.Start -= offset
-		e.exts[i].Key.End -= offset
-		e.exts[i].Value.Start -= offset
-		e.exts[i].Value.End -= offset
+	for i := range e.ExtCount {
+		e.extKeys[i].Start -= offset
+		e.extKeys[i].End -= offset
+		e.extVals[i].Start -= offset
+		e.extVals[i].End -= offset
 	}
 }
 
-// appendHeader writes the "CEF:ver|...|sev|" portion to dst.
 func (e *Event) appendHeader(dst []byte) []byte {
 	dst = append(dst, "CEF:"...)
 	dst = strconv.AppendInt(dst, int64(e.Version), 10)
-	for _, s := range [...]Span{e.Vendor, e.Product, e.DevVersion, e.ClassID, e.Name, e.Severity} {
+	hs := [6]Span{e.Vendor, e.Product, e.DevVersion, e.ClassID, e.Name, e.Severity}
+	for _, s := range hs {
 		dst = append(dst, '|')
 		if b := e.Bytes(s); b != nil {
 			dst = append(dst, b...)
 		}
 	}
-	dst = append(dst, '|')
-	return dst
+	return append(dst, '|')
 }
 
-// appendExtensions writes "key=val key2=val2" to dst.
 func (e *Event) appendExtensions(dst []byte) []byte {
-	for i := range e.exts[:e.ExtCount] {
+	for i := range e.ExtCount {
 		if i > 0 {
 			dst = append(dst, ' ')
 		}
-		if b := e.Bytes(e.exts[i].Key); b != nil {
+		if b := e.Bytes(e.extKeys[i]); b != nil {
 			dst = append(dst, b...)
 		}
 		dst = append(dst, '=')
-		if b := e.Bytes(e.exts[i].Value); b != nil {
+		if b := e.Bytes(e.extVals[i]); b != nil {
 			dst = append(dst, b...)
 		}
 	}
 	return dst
 }
 
-// AppendText implements [encoding.TextAppender]. Appends the canonical CEF
-// representation to dst. Escape sequences are preserved as-is.
+// AppendText appends the canonical CEF representation to dst.
+// Escape sequences are preserved as-is.
 func (e *Event) AppendText(dst []byte) ([]byte, error) {
 	if e.raw == nil {
 		return dst, nil
 	}
-	n := e.estimateTextLen()
-	dst = slices.Grow(dst, n)
+	dst = slices.Grow(dst, e.estimateTextLen())
 	dst = e.appendHeader(dst)
-	dst = e.appendExtensions(dst)
-	return dst, nil
+	return e.appendExtensions(dst), nil
 }
 
 func (e *Event) estimateTextLen() int {
-	vlen := versionDigits(e.Version)
-	n := 4 + vlen // "CEF:" + version
-	for _, s := range [...]Span{e.Vendor, e.Product, e.DevVersion, e.ClassID, e.Name, e.Severity} {
+	n := 4 + versionDigits(e.Version)
+	hs := [6]Span{e.Vendor, e.Product, e.DevVersion, e.ClassID, e.Name, e.Severity}
+	for _, s := range hs {
 		n += 1 + int(s.Len())
 	}
-	n++ // trailing "|"
-	for i := range e.exts[:e.ExtCount] {
+	n++
+	for i := range e.ExtCount {
 		if i > 0 {
 			n++
 		}
-		n += int(e.exts[i].Key.Len()) + 1 + int(e.exts[i].Value.Len())
+		n += int(e.extKeys[i].Len()) + 1 + int(e.extVals[i].Len())
 	}
 	return n
 }
 
-// versionDigits returns the number of decimal digits for a version number.
-// Avoids allocating a string representation.
 func versionDigits(v Version) int {
 	switch {
+	case v < 0:
+		return 2
 	case v < 10:
 		return 1
 	case v < 100:
 		return 2
 	case v < 1000:
 		return 3
-	default:
-		return 4
 	}
+	return 4
 }
 
-// MarshalText implements [encoding.TextMarshaler].
-// Allocates: one buffer proportional to the serialized size.
-// Returns (nil, nil) if the Event has no backing buffer.
-func (e *Event) MarshalText() ([]byte, error) {
-	return e.AppendText(nil)
-}
+// MarshalText implements encoding.TextMarshaler.
+func (e *Event) MarshalText() ([]byte, error) { return e.AppendText(nil) }
 
-// UnmarshalText implements [encoding.TextUnmarshaler]. Copies the input
-// (required by the interface contract) and parses it.
-// Allocates: one copy of the input buffer plus one [ParseError] on error.
-// For zero-alloc parsing, use [Parser.Parse] directly.
+// UnmarshalText implements encoding.TextUnmarshaler. Copies the input
+// and parses it. For zero-alloc parsing, use Parser.Parse directly.
 func (e *Event) UnmarshalText(text []byte) error {
 	buf := bytes.Clone(text)
-	// Stack-allocated Parser to avoid heap escape.
-	// Must be kept in sync with NewParser defaults.
-	var m Parser
-	m.maxExtensions = MaxExtensions
-	parsed, err := m.Parse(buf)
+	var p Parser
+	p.maxExtensions = MaxExtensions
+	parsed, err := p.Parse(buf)
 	if err != nil {
+		var pe *ParseError
+		if errors.As(err, &pe) {
+			cp := *pe
+			return &cp
+		}
 		return err
 	}
 	*e = *parsed
 	return nil
 }
 
-// String returns a human-readable summary for debugging.
-// Allocates: one string via [strings.Builder].
+// String returns a human-readable summary.
 func (e *Event) String() string {
 	if e.raw == nil {
 		return "Event{}"
@@ -461,9 +451,9 @@ func (e *Event) writeExtSample(b *strings.Builder) {
 		if i > 0 {
 			b.WriteByte(' ')
 		}
-		b.WriteString(e.Text(e.exts[i].Key))
+		b.WriteString(e.Text(e.extKeys[i]))
 		b.WriteByte('=')
-		v := e.Text(e.exts[i].Value)
+		v := e.Text(e.extVals[i])
 		if len(v) > maxVal {
 			b.WriteString(v[:maxVal])
 			b.WriteString("...")
@@ -475,4 +465,30 @@ func (e *Event) writeExtSample(b *strings.Builder) {
 		b.WriteString(" ...")
 	}
 	b.WriteByte(']')
+}
+
+// keyPackBytes packs up to the first 4 bytes of key into a uint32.
+// Single-instruction equality pre-filter for extension lookup.
+func keyPackBytes(key []byte) uint32 {
+	n := len(key)
+	if n >= 4 {
+		return binary.LittleEndian.Uint32(key)
+	}
+	var h uint32
+	for i := range n {
+		h |= uint32(key[i]) << (i * 8)
+	}
+	return h
+}
+
+func keyPackString(key string) uint32 {
+	n := len(key)
+	if n >= 4 {
+		return uint32(key[0]) | uint32(key[1])<<8 | uint32(key[2])<<16 | uint32(key[3])<<24
+	}
+	var h uint32
+	for i := range n {
+		h |= uint32(key[i]) << (i * 8)
+	}
+	return h
 }

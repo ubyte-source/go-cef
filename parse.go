@@ -5,86 +5,60 @@ import (
 	"math"
 )
 
-// safeU32 converts a non-negative int to uint32 with overflow protection.
-func safeU32(n int) uint32 {
-	if n < 0 || n > math.MaxUint32 {
-		return 0
-	}
-	return uint32(n)
-}
-
-// fail returns the error result. In best-effort mode, the partial Event
-// is returned alongside the error.
-func (m *Parser) fail(pe *ParseError) (*Event, error) {
-	if m.bestEffort {
-		return &m.msg, pe
+func (p *Parser) fail(pe *ParseError) (*Event, error) {
+	if p.bestEffort {
+		return &p.msg, pe
 	}
 	return nil, pe
 }
 
 // Parse parses the input as a CEF message.
-//
 // The returned *Event is valid until the next Parse call on the same Parser.
-// The returned error, if non-nil, is a *[ParseError] whose value is also
-// valid only until the next Parse call on the same Parser.
-func (m *Parser) Parse(input []byte) (*Event, error) {
-	m.resetMsg(input)
+func (p *Parser) Parse(input []byte) (*Event, error) {
+	p.resetMsg(input)
 
 	if len(input) == 0 {
-		return m.fail(m.makeError(0, ErrEmpty))
+		return p.fail(p.makeError(0, ErrEmpty))
 	}
-	inputLen := len(input)
-	if inputLen > math.MaxUint32 {
-		return m.fail(m.makeError(0, ErrInputTooLarge))
+	if len(input) > math.MaxUint32 {
+		return p.fail(p.makeError(0, ErrInputTooLarge))
 	}
-	n := safeU32(inputLen)
+	n := uint32(len(input) & math.MaxUint32)
 
-	p, err := m.parseVersion(input, n)
+	pos, err := p.parseVersion(input, n)
 	if err != nil {
-		return m.fail(err)
+		return p.fail(err)
 	}
 
-	p, err = m.parseHeaderFields(input, p, n)
+	pos, err = p.parseHeaderFields(input, pos, n)
 	if err != nil {
-		return m.fail(err)
+		return p.fail(err)
 	}
 
-	m.msg.headerComplete = true
+	p.msg.headerComplete = true
 
-	if p < n && input[p] == '|' {
-		if extErr := m.parseExtensions(p + 1); extErr != nil {
-			return m.fail(extErr)
+	if pos < n && input[pos] == '|' {
+		if extErr := p.parseExtensions(pos + 1); extErr != nil {
+			return p.fail(extErr)
 		}
 	}
 
-	return &m.msg, nil
+	return &p.msg, nil
 }
 
-// ParseString is like [Parser.Parse] but accepts a string, avoiding the
-// string→[]byte copy when the caller already has a string. The parser
-// never modifies the input buffer.
-func (m *Parser) ParseString(input string) (*Event, error) {
-	if input == "" {
-		return m.Parse(nil)
-	}
-	return m.Parse([]byte(input))
+func (p *Parser) resetMsg(input []byte) {
+	p.msg.raw = input
+	p.msg.Version = InvalidVersion
+	p.msg.Vendor = Span{}
+	p.msg.Product = Span{}
+	p.msg.DevVersion = Span{}
+	p.msg.ClassID = Span{}
+	p.msg.Name = Span{}
+	p.msg.Severity = Span{}
+	p.msg.ExtCount = 0
+	p.msg.headerComplete = false
 }
 
-// resetMsg prepares the Event for a new parse.
-func (m *Parser) resetMsg(input []byte) {
-	m.msg.raw = input
-	m.msg.Version = InvalidVersion
-	m.msg.Vendor = Span{}
-	m.msg.Product = Span{}
-	m.msg.DevVersion = Span{}
-	m.msg.ClassID = Span{}
-	m.msg.Name = Span{}
-	m.msg.Severity = Span{}
-	m.msg.ExtCount = 0
-	m.msg.headerComplete = false
-}
-
-// skipSpaces advances p past any space characters.
 func skipSpaces(input []byte, p, n uint32) uint32 {
 	for p < n && input[p] == ' ' {
 		p++
@@ -92,7 +66,6 @@ func skipSpaces(input []byte, p, n uint32) uint32 {
 	return p
 }
 
-// scanDigits advances p past ASCII digits '0'–'9'.
 func scanDigits(input []byte, p, n uint32) uint32 {
 	for p < n && input[p] >= '0' && input[p] <= '9' {
 		p++
@@ -100,121 +73,79 @@ func scanDigits(input []byte, p, n uint32) uint32 {
 	return p
 }
 
-// parseVersion validates the "CEF:" prefix, skips optional whitespace,
-// and parses the version number. Returns the position after "version|".
-func (m *Parser) parseVersion(input []byte, n uint32) (uint32, *ParseError) {
+func (p *Parser) parseVersion(input []byte, n uint32) (uint32, *ParseError) {
 	if n < 4 || string(input[:4]) != "CEF:" {
-		return 0, m.makeError(0, ErrPrefix)
+		return 0, p.makeError(0, ErrPrefix)
 	}
-	p := skipSpaces(input, 4, n)
+	pos := skipSpaces(input, 4, n)
 
-	// Version: one or more ASCII digits.
-	if p >= n || input[p] < '0' || input[p] > '9' {
-		return p, m.makeError(p, ErrVersion)
+	if pos >= n || input[pos] < '0' || input[pos] > '9' {
+		return pos, p.makeError(pos, ErrVersion)
 	}
-	vStart := p
-	p = scanDigits(input, p, n)
-	m.msg.Version = parseVersionBytes(input[vStart:p])
-	if m.msg.Version < 0 {
-		return vStart, m.makeError(vStart, ErrVersion)
+	vStart := pos
+	pos = scanDigits(input, pos, n)
+	p.msg.Version = parseVersionBytes(input[vStart:pos])
+	if p.msg.Version < 0 {
+		return vStart, p.makeError(vStart, ErrVersion)
 	}
 
-	if p >= n || input[p] != '|' {
-		return p, m.makeError(p, ErrIncompleteHeader)
+	if pos >= n || input[pos] != '|' {
+		return pos, p.makeError(pos, ErrIncompleteHeader)
 	}
-	return p + 1, nil
+	return pos + 1, nil
 }
 
-// hasPipe checks whether input[p] is a pipe delimiter.
-func hasPipe(input []byte, p, n uint32) bool {
-	return p < n && input[p] == '|'
+func (p *Parser) parseHeaderFields(input []byte, pos, n uint32) (uint32, *ParseError) {
+	targets := [6]*Span{
+		&p.msg.Vendor, &p.msg.Product, &p.msg.DevVersion,
+		&p.msg.ClassID, &p.msg.Name, &p.msg.Severity,
+	}
+	for i, field := range targets {
+		start := pos
+		pos = scanField(input, pos, n)
+		*field = Span{start, pos}
+		if i == 5 {
+			break
+		}
+		if pos >= n || input[pos] != '|' {
+			return pos, p.makeError(pos, ErrIncompleteHeader)
+		}
+		pos++
+	}
+	return pos, nil
 }
 
-// parseHeaderFields parses the 6 pipe-delimited header fields
-// (Vendor, Product, DevVersion, ClassID, Name, Severity).
-// Unrolled for zero-indirection and better branch prediction.
-func (m *Parser) parseHeaderFields(input []byte, p, n uint32) (uint32, *ParseError) {
-	var start uint32
-
-	start = p
-	p = scanField(input, p, n, start)
-	m.msg.Vendor = Span{start, p}
-	if !hasPipe(input, p, n) {
-		return p, m.makeError(p, ErrIncompleteHeader)
-	}
-	p++
-
-	start = p
-	p = scanField(input, p, n, start)
-	m.msg.Product = Span{start, p}
-	if !hasPipe(input, p, n) {
-		return p, m.makeError(p, ErrIncompleteHeader)
-	}
-	p++
-
-	start = p
-	p = scanField(input, p, n, start)
-	m.msg.DevVersion = Span{start, p}
-	if !hasPipe(input, p, n) {
-		return p, m.makeError(p, ErrIncompleteHeader)
-	}
-	p++
-
-	start = p
-	p = scanField(input, p, n, start)
-	m.msg.ClassID = Span{start, p}
-	if !hasPipe(input, p, n) {
-		return p, m.makeError(p, ErrIncompleteHeader)
-	}
-	p++
-
-	start = p
-	p = scanField(input, p, n, start)
-	m.msg.Name = Span{start, p}
-	if !hasPipe(input, p, n) {
-		return p, m.makeError(p, ErrIncompleteHeader)
-	}
-	p++
-
-	start = p
-	p = scanField(input, p, n, start)
-	m.msg.Severity = Span{start, p}
-
-	return p, nil
-}
-
-// scanField scans forward in input[p:n] for the next unescaped '|', returning
-// its position. If no '|' is found, returns n.
-func scanField(input []byte, p, n, start uint32) uint32 {
-	if p >= n {
-		return n
-	}
-	_ = input[n-1] // BCE hint
-	for {
-		idx := bytes.IndexByte(input[p:n], '|')
+// scanField returns the next unescaped '|' position in input[pos:n], or n.
+func scanField(input []byte, pos, n uint32) uint32 {
+	start := pos
+	for pos < n {
+		idx := bytes.IndexByte(input[pos:n], '|')
 		if idx < 0 {
 			return n
 		}
-		p += safeU32(idx)
-		// Inline backward backslash count — only runs when '|' is found.
-		if p > start && input[p-1] == '\\' {
-			bs := uint32(1)
-			for j := p - 1; j > start && input[j-1] == '\\'; j-- {
-				bs++
-			}
-			if bs%2 == 1 {
-				p++
-				continue
-			}
+		q := pos + uint32(idx&math.MaxUint32)
+		if !isEscapedDelim(input, q, start) {
+			return q
 		}
-		return p
+		pos = q + 1
 	}
+	return n
 }
 
-// parseVersionBytes converts ASCII digits to Version. Accepts 1–4 digits.
-// Returns [InvalidVersion] for empty, >4 digits, or leading zeros.
-//
-// Precondition: all bytes in b must be ASCII digits '0'–'9'.
+// isEscapedDelim reports whether input[at] is preceded by an odd number of
+// backslashes (i.e., it is escaped). minPos bounds the backward scan.
+func isEscapedDelim(input []byte, at, minPos uint32) bool {
+	if at <= minPos || input[at-1] != '\\' {
+		return false
+	}
+	bs := uint32(1)
+	for j := at - 1; j > minPos && input[j-1] == '\\'; j-- {
+		bs++
+	}
+	return bs&1 == 1
+}
+
+// parseVersionBytes parses 1-4 ASCII digits; rejects leading zeros except "0".
 func parseVersionBytes(b []byte) Version {
 	n := len(b)
 	if n == 0 || n > 4 {

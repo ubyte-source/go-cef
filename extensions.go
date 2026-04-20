@@ -1,26 +1,45 @@
 package cef
 
-import "bytes"
+import (
+	"bytes"
+	"math"
+)
 
-const maxKeyLen = 63 // generous upper bound for CEF key length
+const (
+	maxKeyLen        = 63
+	maxEqualsScanned = 256
+)
 
-// maxEqualsScanned is the DoS budget: at most this many '=' signs are
-// examined per extension value. 256 limits the worst-case scan to roughly
-// 256 × 63 ≈ 16 KiB per value — sufficient for all known vendor formats
-// while bounding adversarial input cost.
-const maxEqualsScanned = 256
+// isKeyByte is a 256-entry lookup for valid key chars [a-zA-Z0-9._\-\[\]].
+// A single load + test, no division/modulo.
+var isKeyByte = func() [256]bool {
+	var t [256]bool
+	for c := byte('a'); c <= 'z'; c++ {
+		t[c] = true
+	}
+	for c := byte('A'); c <= 'Z'; c++ {
+		t[c] = true
+	}
+	for c := byte('0'); c <= '9'; c++ {
+		t[c] = true
+	}
+	t['.'] = true
+	t['_'] = true
+	t['-'] = true
+	t['['] = true
+	t[']'] = true
+	return t
+}()
 
-// parseExtensions parses extension key=value pairs starting at pos.
-func (m *Parser) parseExtensions(pos uint32) *ParseError {
-	data := m.msg.raw
-	end := safeU32(len(data))
+func (p *Parser) parseExtensions(pos uint32) *ParseError {
+	data := p.msg.raw
+	end := uint32(len(data) & math.MaxUint32)
 	if pos >= end {
 		return nil
 	}
-	_ = data[end-1] // BCE hint: eliminate bounds checks in the loop
 
 	n := 0
-	maxExt := m.maxExtensions
+	maxExt := p.maxExtensions
 
 	pos = skipSpaces(data, pos, end)
 
@@ -29,97 +48,71 @@ func (m *Parser) parseExtensions(pos uint32) *ParseError {
 		if idx < 0 {
 			break
 		}
-		eq := pos + safeU32(idx)
+		eq := pos + uint32(idx&math.MaxUint32)
 
 		keyStart := pos
 		keyEnd := eq
-		// For the first key, validate explicitly. For subsequent keys,
-		// findValueEnd already validated the candidate that became this key.
 		if n == 0 && !validKey(data[keyStart:keyEnd]) {
-			if m.bestEffort {
+			if p.bestEffort {
 				break
 			}
-			return m.makeError(pos, ErrExtKey)
+			return p.makeError(pos, ErrExtKey)
 		}
 
 		valStart := eq + 1
 		valEnd := findValueEnd(data, valStart, end)
 
-		m.msg.exts[n] = ExtPair{
-			Key:   Span{keyStart, keyEnd},
-			Value: Span{valStart, valEnd},
-		}
+		p.msg.extKeys[n] = Span{keyStart, keyEnd}
+		p.msg.extVals[n] = Span{valStart, valEnd}
+		p.msg.extPacks[n] = keyPackBytes(data[keyStart:keyEnd])
 		n++
 
 		pos = skipSpaces(data, valEnd, end)
 	}
 
-	m.msg.ExtCount = n
+	p.msg.ExtCount = n
 
 	if n >= maxExt && pos < end {
-		return m.checkExtOverflow(pos, end)
+		return p.checkExtOverflow(pos, end)
 	}
-
 	return nil
 }
 
-// checkExtOverflow checks whether more extensions remain after the limit.
-func (m *Parser) checkExtOverflow(pos, end uint32) *ParseError {
-	data := m.msg.raw
+func (p *Parser) checkExtOverflow(pos, end uint32) *ParseError {
+	data := p.msg.raw
 	idx := bytes.IndexByte(data[pos:end], '=')
-	if idx >= 0 && validKey(data[pos:pos+safeU32(idx)]) {
-		if !m.bestEffort {
-			return m.makeError(pos, ErrExtOverflow)
-		}
+	if idx >= 0 && validKey(data[pos:pos+uint32(idx&math.MaxUint32)]) && !p.bestEffort {
+		return p.makeError(pos, ErrExtOverflow)
 	}
 	return nil
 }
 
-// isEscapedEquals checks if the '=' at position eq is preceded by an
-// odd number of backslashes (i.e., it is escaped).
-func isEscapedEquals(data []byte, eq, minPos uint32) bool {
-	if eq <= minPos || data[eq-1] != '\\' {
-		return false
-	}
-	bs := uint32(1)
-	for j := eq - 1; j > minPos && data[j-1] == '\\'; j-- {
-		bs++
-	}
-	return bs%2 == 1
-}
-
-// findKeyBeforeEquals looks for a valid key between a space and the '=' at eq.
-// Returns the space position and true if a valid key is found.
+// findKeyBeforeEquals scans backward inline (no generic LastIndexByte call)
+// looking for " key=" pattern in [i, eq).
 func findKeyBeforeEquals(data []byte, i, eq uint32) (uint32, bool) {
 	limit := i
-	if eq > maxKeyLen {
-		limit = max(i, eq-maxKeyLen)
+	if eq > maxKeyLen && eq-maxKeyLen > i {
+		limit = eq - maxKeyLen
 	}
-	spIdx := bytes.LastIndexByte(data[limit:eq], ' ')
-	if spIdx < 0 {
+	for j := eq; j > limit; j-- {
+		if data[j-1] != ' ' {
+			continue
+		}
+		spacePos := j - 1
+		if validKey(data[spacePos+1 : eq]) {
+			return spacePos, true
+		}
 		return 0, false
-	}
-	spacePos := limit + safeU32(spIdx)
-	if spacePos < i {
-		return 0, false
-	}
-	if validKey(data[spacePos+1 : eq]) {
-		return spacePos, true
 	}
 	return 0, false
 }
 
-// findValueEnd scans forward for the pattern "SPACE key_chars '='" to find
-// where the current value ends and the next key begins.
-//
-// Worst case: O(maxEqualsScanned × maxKeyLen) ≈ O(16 128) bytes scanned
-// per value, bounded by the DoS budget.
+// findValueEnd scans forward for " key=" patterns to find where the current
+// value ends. Bounded by maxEqualsScanned for DoS resistance.
 func findValueEnd(data []byte, start, end uint32) uint32 {
 	if start >= end {
 		return end
 	}
-	_ = data[end-1] // BCE hint
-
 	i := start
 	budget := maxEqualsScanned
 	for i < end {
@@ -127,14 +120,14 @@ func findValueEnd(data []byte, start, end uint32) uint32 {
 		if idx < 0 {
 			return trimTrailingSpaces(data, start, end)
 		}
-		eq := i + safeU32(idx)
+		eq := i + uint32(idx&math.MaxUint32)
 
 		budget--
 		if budget <= 0 {
 			return trimTrailingSpaces(data, start, end)
 		}
 
-		if isEscapedEquals(data, eq, start) {
+		if isEscapedDelim(data, eq, start) {
 			i = eq + 1
 			continue
 		}
@@ -153,43 +146,17 @@ func findValueEnd(data []byte, start, end uint32) uint32 {
 	return trimTrailingSpaces(data, start, end)
 }
 
-// validKey checks if b is a valid CEF extension key.
 func validKey(b []byte) bool {
 	n := len(b)
 	if n == 0 || n > maxKeyLen {
 		return false
 	}
-	_ = b[len(b)-1] // BCE hint
 	for _, c := range b {
-		if !isKeyChar(c) {
+		if !isKeyByte[c] {
 			return false
 		}
 	}
 	return true
-}
-
-// isKeyBitset is a [4]uint64 lookup for valid key characters [a-zA-Z0-9._\-\[\]].
-var isKeyBitset = func() [4]uint64 {
-	var t [4]uint64
-	set := func(c byte) { t[c/64] |= 1 << (c % 64) }
-	for c := byte('a'); c <= 'z'; c++ {
-		set(c)
-	}
-	for c := byte('A'); c <= 'Z'; c++ {
-		set(c)
-	}
-	for c := byte('0'); c <= '9'; c++ {
-		set(c)
-	}
-	for _, c := range []byte{'.', '_', '-', '[', ']'} {
-		set(c)
-	}
-	return t
-}()
-
-// isKeyChar returns true if c is valid in a CEF extension key.
-func isKeyChar(c byte) bool {
-	return isKeyBitset[c/64]&(1<<(c%64)) != 0
 }
 
 func trimTrailingSpaces(data []byte, start, end uint32) uint32 {

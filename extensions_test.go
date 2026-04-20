@@ -1,26 +1,27 @@
 package cef
 
 import (
+	"math"
 	"strings"
 	"testing"
 )
 
-func TestIsKeyChar(t *testing.T) {
+func TestIsKeyByte(t *testing.T) {
 	valid := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-[]"
 	for _, c := range []byte(valid) {
-		if !isKeyChar(c) {
-			t.Errorf("isKeyChar(%q) = false, want true", rune(c))
+		if !isKeyByte[c] {
+			t.Errorf("isKeyByte[%q] = false, want true", rune(c))
 		}
 	}
 	invalid := " \t\n=|\\/@#$%^&*(){}:;'\"<>,?!"
 	for _, c := range []byte(invalid) {
-		if isKeyChar(c) {
-			t.Errorf("isKeyChar(%q) = true, want false", rune(c))
+		if isKeyByte[c] {
+			t.Errorf("isKeyByte[%q] = true, want false", rune(c))
 		}
 	}
 }
 
-func TestIsKeyBitsetCorrectness(t *testing.T) {
+func TestIsKeyByteCorrectness(t *testing.T) {
 	var ref [256]bool
 	for c := byte('a'); c <= 'z'; c++ {
 		ref[c] = true
@@ -35,10 +36,10 @@ func TestIsKeyBitsetCorrectness(t *testing.T) {
 		ref[c] = true
 	}
 	for i := range 256 {
-		got := isKeyChar(byte(i))
+		got := isKeyByte[byte(i)]
 		want := ref[i]
 		if got != want {
-			t.Errorf("isKeyChar(%d / %q): got %v, want %v", i, rune(i), got, want)
+			t.Errorf("isKeyByte[%d / %q]: got %v, want %v", i, rune(i), got, want)
 		}
 	}
 }
@@ -58,7 +59,7 @@ func TestEscapeDetectionInFindValueEnd(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			data := []byte(tt.data)
-			got := findValueEnd(data, 0, safeU32(len(data)))
+			got := findValueEnd(data, 0, uint32(len(data)&math.MaxUint32))
 			if got != tt.want {
 				t.Errorf("findValueEnd(%q, 0, %d) = %d, want %d",
 					tt.data, len(data), got, tt.want)
@@ -106,7 +107,7 @@ func TestFindValueEnd(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			data := []byte(tt.data)
-			got := findValueEnd(data, tt.start, safeU32(len(data)))
+			got := findValueEnd(data, tt.start, uint32(len(data)&math.MaxUint32))
 			if got != tt.want {
 				t.Errorf("findValueEnd(%q, %d, %d) = %d, want %d",
 					tt.data, tt.start, len(data), got, tt.want)

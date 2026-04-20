@@ -448,21 +448,3 @@ func TestParseVersionBytes(t *testing.T) {
 		}
 	}
 }
-
-func TestParseString(t *testing.T) {
-	m := NewParser()
-
-	// Normal input.
-	e, err := m.ParseString(`CEF:0|Vendor|Product|1.0|100|Name|5|src=1.2.3.4`)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	assertSpan(t, e, e.Vendor, "Vendor")
-	assertExt(t, e, "src", "1.2.3.4")
-
-	// Empty string.
-	_, err = m.ParseString("")
-	if err == nil {
-		t.Fatal("expected error for empty string")
-	}
-}
