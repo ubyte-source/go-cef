@@ -11,7 +11,6 @@ const (
 )
 
 // isKeyByte is a 256-entry lookup for valid key chars [a-zA-Z0-9._\-\[\]].
-// A single load + test, no division/modulo.
 var isKeyByte = func() [256]bool {
 	var t [256]bool
 	for c := byte('a'); c <= 'z'; c++ {
@@ -87,8 +86,7 @@ func (p *Parser) checkExtOverflow(pos, end uint32) *ParseError {
 	return nil
 }
 
-// findKeyBeforeEquals scans backward inline (no generic LastIndexByte call)
-// looking for " key=" pattern in [i, eq).
+// findKeyBeforeEquals scans [i, eq) backward for a " key=" pattern.
 func findKeyBeforeEquals(data []byte, i, eq uint32) (uint32, bool) {
 	limit := i
 	if eq > maxKeyLen && eq-maxKeyLen > i {
@@ -107,8 +105,8 @@ func findKeyBeforeEquals(data []byte, i, eq uint32) (uint32, bool) {
 	return 0, false
 }
 
-// findValueEnd scans forward for " key=" patterns to find where the current
-// value ends. Bounded by maxEqualsScanned for DoS resistance.
+// findValueEnd scans forward for the next " key=" boundary. Bounded by
+// maxEqualsScanned for DoS resistance.
 func findValueEnd(data []byte, start, end uint32) uint32 {
 	if start >= end {
 		return end

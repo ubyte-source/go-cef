@@ -102,9 +102,8 @@ type ExtPair struct {
 // String returns a debug representation.
 func (p ExtPair) String() string { return p.Key.String() + "=" + p.Value.String() }
 
-// Event is the result of parsing a CEF message. All fields are Span
-// offsets into the original input buffer — no strings are copied.
-// Copying an Event by value shares the underlying buffer.
+// Event is the result of parsing a CEF message. Fields are Span offsets
+// into the input buffer; copying by value shares the backing slice.
 type Event struct {
 	raw []byte
 
@@ -218,9 +217,8 @@ func (e *Event) ExtAt(i int) (ExtPair, bool) {
 	return ExtPair{Key: e.extKeys[i], Value: e.extVals[i]}, true
 }
 
-// All returns an iterator over extension key-value pairs.
-// Allocates ~40 B per call due to the iter.Seq2 protocol;
-// use ExtAt in a loop for zero-alloc iteration.
+// All returns an iterator over extension key-value pairs. Allocates
+// ~40 B per call; use ExtAt in a loop for zero-alloc iteration.
 func (e *Event) All() iter.Seq2[Span, Span] {
 	return func(yield func(Span, Span) bool) {
 		for i := range e.ExtCount {
@@ -467,8 +465,8 @@ func (e *Event) writeExtSample(b *strings.Builder) {
 	b.WriteByte(']')
 }
 
-// keyPackBytes packs up to the first 4 bytes of key into a uint32.
-// Single-instruction equality pre-filter for extension lookup.
+// keyPackBytes packs up to the first 4 bytes of key into a uint32 for
+// single-instruction pre-filtering.
 func keyPackBytes(key []byte) uint32 {
 	n := len(key)
 	if n >= 4 {
