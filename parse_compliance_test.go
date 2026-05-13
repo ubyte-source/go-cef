@@ -126,7 +126,7 @@ func TestSpec_TrailingSpacesLastValueTrimmed(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	assertExt(t, e, "msg", "hello world")
+	assertExt(t, e, "msg", testMsgHelloWorld)
 }
 
 func TestSpec_PipeInExtensionValueNotEscaped(t *testing.T) {
@@ -246,15 +246,15 @@ func TestSpec_DateFormats(t *testing.T) {
 	tests := []struct {
 		name, ext, val string
 	}{
-		{"epoch_ms", "rt", "1234567890000"},
-		{"MMM_dd_HH_mm_ss_SSS_zzz", "rt", "Mar 19 08:26:10.000 UTC"},
-		{"MMM_dd_HH_mm_ss_SSS", "rt", "Mar 19 08:26:10.000"},
-		{"MMM_dd_HH_mm_ss_zzz", "rt", "Mar 19 08:26:10 UTC"},
-		{"MMM_dd_HH_mm_ss", "rt", "Mar 19 08:26:10"},
-		{"MMM_dd_yyyy_HH_mm_ss_SSS_zzz", "rt", "Mar 19 2025 08:26:10.000 UTC"},
-		{"MMM_dd_yyyy_HH_mm_ss_SSS", "rt", "Mar 19 2025 08:26:10.000"},
-		{"MMM_dd_yyyy_HH_mm_ss_zzz", "rt", "Mar 19 2025 08:26:10 UTC"},
-		{"MMM_dd_yyyy_HH_mm_ss", "rt", "Mar 19 2025 08:26:10"},
+		{"epoch_ms", testExtKeyReceiptTime, "1234567890000"},
+		{"MMM_dd_HH_mm_ss_SSS_zzz", testExtKeyReceiptTime, "Mar 19 08:26:10.000 UTC"},
+		{"MMM_dd_HH_mm_ss_SSS", testExtKeyReceiptTime, "Mar 19 08:26:10.000"},
+		{"MMM_dd_HH_mm_ss_zzz", testExtKeyReceiptTime, "Mar 19 08:26:10 UTC"},
+		{"MMM_dd_HH_mm_ss", testExtKeyReceiptTime, "Mar 19 08:26:10"},
+		{"MMM_dd_yyyy_HH_mm_ss_SSS_zzz", testExtKeyReceiptTime, "Mar 19 2025 08:26:10.000 UTC"},
+		{"MMM_dd_yyyy_HH_mm_ss_SSS", testExtKeyReceiptTime, "Mar 19 2025 08:26:10.000"},
+		{"MMM_dd_yyyy_HH_mm_ss_zzz", testExtKeyReceiptTime, "Mar 19 2025 08:26:10 UTC"},
+		{"MMM_dd_yyyy_HH_mm_ss", testExtKeyReceiptTime, "Mar 19 2025 08:26:10"},
 	}
 	m := cef.NewParser()
 	for _, tt := range tests {

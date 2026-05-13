@@ -12,15 +12,15 @@ func TestUnescapeHeader(t *testing.T) {
 		raw  string
 		want string
 	}{
-		{"no_escape", "hello world", "hello world"},
+		{"no_escape", testMsgHelloWorld, testMsgHelloWorld},
 		{"escaped_pipe", `detected a \| in message`, "detected a | in message"},
 		{"escaped_backslash", `name with \\`, `name with \`},
 		{"both_escapes", `a \| b \\ c`, `a | b \ c`},
 		{"multiple_pipes", `\|foo\|bar\|`, "|foo|bar|"},
 		{"double_backslash_pipe", `test \\\| end`, `test \| end`},
 		{"empty", "", ""},
-		{"just_backslash_at_end", `test\`, `test\`},
-		{"unknown_escape_permissive", `test\n kept`, `test\n kept`},
+		{"just_backslash_at_end", testBackslashTrailing, testBackslashTrailing},
+		{"unknown_escape_permissive", testHeaderUnknownEscape, testHeaderUnknownEscape},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -38,7 +38,7 @@ func TestUnescapeExtValue(t *testing.T) {
 		raw  string
 		want string
 	}{
-		{"no_escape", "hello world", "hello world"},
+		{"no_escape", testMsgHelloWorld, testMsgHelloWorld},
 		{"escaped_equals", `hello\=world`, "hello=world"},
 		{"escaped_backslash", `C:\\Windows\\System32`, `C:\Windows\System32`},
 		{"escaped_newline", `line1\nline2`, "line1\nline2"},
@@ -47,9 +47,9 @@ func TestUnescapeExtValue(t *testing.T) {
 		{"double_backslash_before_equals", `test\\=val`, `test\=val`},
 		{"triple_backslash_equals", `test\\\=val`, `test\=val`},
 		{"empty", "", ""},
-		{"just_backslash_at_end", `test\`, `test\`},
-		{"unknown_escape_permissive", `test\x kept`, `test\x kept`},
-		{"pipe_not_escaped", "contains | pipe", "contains | pipe"},
+		{"just_backslash_at_end", testBackslashTrailing, testBackslashTrailing},
+		{"unknown_escape_permissive", testExtUnknownEscape, testExtUnknownEscape},
+		{"pipe_not_escaped", testPipeNotEscaped, testPipeNotEscaped},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

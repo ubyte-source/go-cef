@@ -1,5 +1,16 @@
 package cef
 
+// Severity level labels returned by Event.SeverityLevel for the named CEF
+// severity values. They correspond to the numeric ranges enforced by
+// numToSeverityLevel: Low=[0,3], Medium=(3,6], High=(6,8], Very-High=(8,10].
+const (
+	SeverityLevelLow      = "Low"
+	SeverityLevelMedium   = "Medium"
+	SeverityLevelHigh     = "High"
+	SeverityLevelVeryHigh = "Very-High"
+	SeverityLevelUnknown  = "Unknown"
+)
+
 // SeverityNum returns the numeric severity (0-10) for the parsed event.
 // Named severities: Low=3, Medium=6, High=8, Very-High=10, Unknown=-1.
 // Returns (0, false) if the severity field is invalid.
@@ -62,13 +73,13 @@ func numToSeverityLevel(num int) string {
 	case num < 0:
 		return ""
 	case num <= 3:
-		return "Low"
+		return SeverityLevelLow
 	case num <= 6:
-		return "Medium"
+		return SeverityLevelMedium
 	case num <= 8:
-		return "High"
+		return SeverityLevelHigh
 	}
-	return "Very-High"
+	return SeverityLevelVeryHigh
 }
 
 // matchNamedSeverity dispatches by length and delegates the byte comparison.
@@ -91,14 +102,14 @@ func matchNamedSeverity(b []byte) (name string, num int) {
 // OR by 0x20 folds ASCII uppercase to lowercase; '-' and digits are preserved.
 func matchLow(b []byte) (name string, num int) {
 	if b[0]|0x20 == 'l' && b[1]|0x20 == 'o' && b[2]|0x20 == 'w' {
-		return "Low", 3
+		return SeverityLevelLow, 3
 	}
 	return "", 0
 }
 
 func matchHigh(b []byte) (name string, num int) {
 	if b[0]|0x20 == 'h' && b[1]|0x20 == 'i' && b[2]|0x20 == 'g' && b[3]|0x20 == 'h' {
-		return "High", 8
+		return SeverityLevelHigh, 8
 	}
 	return "", 0
 }
@@ -106,7 +117,7 @@ func matchHigh(b []byte) (name string, num int) {
 func matchMedium(b []byte) (name string, num int) {
 	if b[0]|0x20 == 'm' && b[1]|0x20 == 'e' && b[2]|0x20 == 'd' &&
 		b[3]|0x20 == 'i' && b[4]|0x20 == 'u' && b[5]|0x20 == 'm' {
-		return "Medium", 6
+		return SeverityLevelMedium, 6
 	}
 	return "", 0
 }
@@ -114,7 +125,7 @@ func matchMedium(b []byte) (name string, num int) {
 func matchUnknown(b []byte) (name string, num int) {
 	if b[0]|0x20 == 'u' && b[1]|0x20 == 'n' && b[2]|0x20 == 'k' && b[3]|0x20 == 'n' &&
 		b[4]|0x20 == 'o' && b[5]|0x20 == 'w' && b[6]|0x20 == 'n' {
-		return "Unknown", SeverityUnknown
+		return SeverityLevelUnknown, SeverityUnknown
 	}
 	return "", 0
 }
@@ -123,7 +134,7 @@ func matchVeryHigh(b []byte) (name string, num int) {
 	if b[4] == '-' &&
 		b[0]|0x20 == 'v' && b[1]|0x20 == 'e' && b[2]|0x20 == 'r' && b[3]|0x20 == 'y' &&
 		b[5]|0x20 == 'h' && b[6]|0x20 == 'i' && b[7]|0x20 == 'g' && b[8]|0x20 == 'h' {
-		return "Very-High", 10
+		return SeverityLevelVeryHigh, 10
 	}
 	return "", 0
 }

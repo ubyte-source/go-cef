@@ -3,7 +3,10 @@
 > A zero-allocation CEF (Common Event Format) parser for Go.
 
 [![Go Version](https://img.shields.io/badge/Go-1.25+-blue.svg)](https://golang.org)
-[![CI](https://github.com/ubyte-source/go-cef/actions/workflows/ci.yml/badge.svg)](https://github.com/ubyte-source/go-cef/actions/workflows/ci.yml)
+[![Lint](https://github.com/ubyte-source/go-cef/actions/workflows/lint.yml/badge.svg)](https://github.com/ubyte-source/go-cef/actions/workflows/lint.yml)
+[![Test](https://github.com/ubyte-source/go-cef/actions/workflows/test.yml/badge.svg)](https://github.com/ubyte-source/go-cef/actions/workflows/test.yml)
+[![Security](https://github.com/ubyte-source/go-cef/actions/workflows/security.yml/badge.svg)](https://github.com/ubyte-source/go-cef/actions/workflows/security.yml)
+[![Fuzz](https://github.com/ubyte-source/go-cef/actions/workflows/fuzz.yml/badge.svg)](https://github.com/ubyte-source/go-cef/actions/workflows/fuzz.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/ubyte-source/go-cef)](https://goreportcard.com/report/github.com/ubyte-source/go-cef)
 [![Go Reference](https://pkg.go.dev/badge/github.com/ubyte-source/go-cef.svg)](https://pkg.go.dev/github.com/ubyte-source/go-cef)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-green.svg)](https://opensource.org/licenses/Apache-2.0)

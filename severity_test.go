@@ -43,13 +43,17 @@ func TestSeverityLevel(t *testing.T) {
 		want   string
 		wantOK bool
 	}{
-		{"0", "Low", true}, {"1", "Low", true}, {"2", "Low", true}, {"3", "Low", true},
-		{"4", "Medium", true}, {"5", "Medium", true}, {"6", "Medium", true},
-		{"7", "High", true}, {"8", "High", true},
-		{"9", "Very-High", true}, {"10", "Very-High", true},
-		{"Low", "Low", true}, {"Medium", "Medium", true}, {"High", "High", true},
-		{"Very-High", "Very-High", true}, {"Unknown", "Unknown", true},
-		{"low", "Low", true}, {"medium", "Medium", true}, {"high", "High", true},
+		{"0", SeverityLevelLow, true}, {"1", SeverityLevelLow, true},
+		{"2", SeverityLevelLow, true}, {"3", SeverityLevelLow, true},
+		{"4", SeverityLevelMedium, true}, {"5", SeverityLevelMedium, true},
+		{"6", SeverityLevelMedium, true},
+		{"7", SeverityLevelHigh, true}, {"8", SeverityLevelHigh, true},
+		{"9", SeverityLevelVeryHigh, true}, {"10", SeverityLevelVeryHigh, true},
+		{"Low", SeverityLevelLow, true}, {"Medium", SeverityLevelMedium, true},
+		{"High", SeverityLevelHigh, true},
+		{"Very-High", SeverityLevelVeryHigh, true}, {"Unknown", SeverityLevelUnknown, true},
+		{"low", SeverityLevelLow, true}, {"medium", SeverityLevelMedium, true},
+		{"high", SeverityLevelHigh, true},
 		{"", "", false}, {"invalid", "", false}, {"abc", "", false},
 	}
 	m := NewParser()
