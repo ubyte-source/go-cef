@@ -28,6 +28,9 @@
 // the next Parse call on the same Parser. Use Clone or CloneTo to retain a
 // result across further Parse calls.
 //
+// The error returned by Parse is an independent value, safe to retain, compare
+// with errors.Is, or read concurrently with a later Parse.
+//
 // # Concurrency
 //
 // A Parser is not safe for concurrent use. A parsed *Event is safe for

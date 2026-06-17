@@ -1,7 +1,6 @@
 package cef
 
 import (
-	"math"
 	"strings"
 	"testing"
 )
@@ -59,7 +58,7 @@ func TestEscapeDetectionInFindValueEnd(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			data := []byte(tt.data)
-			got := findValueEnd(data, 0, uint32(len(data)&math.MaxUint32))
+			got := findValueEnd(data, 0, u32(len(data)))
 			if got != tt.want {
 				t.Errorf("findValueEnd(%q, 0, %d) = %d, want %d",
 					tt.data, len(data), got, tt.want)
@@ -107,7 +106,7 @@ func TestFindValueEnd(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			data := []byte(tt.data)
-			got := findValueEnd(data, tt.start, uint32(len(data)&math.MaxUint32))
+			got := findValueEnd(data, tt.start, u32(len(data)))
 			if got != tt.want {
 				t.Errorf("findValueEnd(%q, %d, %d) = %d, want %d",
 					tt.data, tt.start, len(data), got, tt.want)
@@ -178,4 +177,37 @@ func TestFindValueEndDoSBudget(t *testing.T) {
 		t.Errorf("ext count: got %d, want 1", e.ExtCount)
 	}
 	assertExt(t, e, "msg", strings.TrimRight(fakeEquals, " "))
+}
+
+// A maxKeyLen (63) key must split at a spaced-value boundary, like a 62-byte key.
+func TestFindKeyBeforeEqualsMaxKeyLen(t *testing.T) {
+	m := NewParser()
+	for _, l := range []int{maxKeyLen - 1, maxKeyLen} { // 62 and 63 must both split
+		key := strings.Repeat("k", l)
+		e, err := m.Parse([]byte("CEF:0|v|p|d|c|n|5|msg=hello " + key + "=v"))
+		if err != nil {
+			t.Fatalf("len=%d: %v", l, err)
+		}
+		if e.ExtCount != 2 {
+			t.Errorf("len=%d: ext count got %d, want 2", l, e.ExtCount)
+		}
+		if _, ok := e.ExtString(key); !ok {
+			t.Errorf("len=%d: key not found", l)
+		}
+		assertExt(t, e, "msg", "hello")
+	}
+}
+
+// Escaped "\=" must not consume the scan budget and drop later extensions.
+func TestFindValueEndEscapedEqualsKeepsBudget(t *testing.T) {
+	m := NewParser()
+	val := strings.Repeat(`x\=`, maxEqualsScanned+50)
+	e, err := m.Parse([]byte("CEF:0|v|p|d|c|n|5|msg=" + val + " realkey=realval"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, ok := e.ExtString("realkey"); !ok {
+		t.Fatalf("realkey dropped (ext count %d): escaped \\= should not consume budget", e.ExtCount)
+	}
+	assertExt(t, e, "realkey", "realval")
 }

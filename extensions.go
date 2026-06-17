@@ -1,9 +1,6 @@
 package cef
 
-import (
-	"bytes"
-	"math"
-)
+import "bytes"
 
 const (
 	maxKeyLen        = 63
@@ -32,7 +29,7 @@ var isKeyByte = func() [256]bool {
 
 func (p *Parser) parseExtensions(pos uint32) *ParseError {
 	data := p.msg.raw
-	end := uint32(len(data) & math.MaxUint32)
+	end := u32(len(data))
 	if pos >= end {
 		return nil
 	}
@@ -47,7 +44,7 @@ func (p *Parser) parseExtensions(pos uint32) *ParseError {
 		if idx < 0 {
 			break
 		}
-		eq := pos + uint32(idx&math.MaxUint32)
+		eq := pos + u32(idx)
 
 		keyStart := pos
 		keyEnd := eq
@@ -80,7 +77,7 @@ func (p *Parser) parseExtensions(pos uint32) *ParseError {
 func (p *Parser) checkExtOverflow(pos, end uint32) *ParseError {
 	data := p.msg.raw
 	idx := bytes.IndexByte(data[pos:end], '=')
-	if idx >= 0 && validKey(data[pos:pos+uint32(idx&math.MaxUint32)]) && !p.bestEffort {
+	if idx >= 0 && validKey(data[pos:pos+u32(idx)]) && !p.bestEffort {
 		return p.makeError(pos, ErrExtOverflow)
 	}
 	return nil
@@ -89,8 +86,10 @@ func (p *Parser) checkExtOverflow(pos, end uint32) *ParseError {
 // findKeyBeforeEquals scans [i, eq) backward for a " key=" pattern.
 func findKeyBeforeEquals(data []byte, i, eq uint32) (uint32, bool) {
 	limit := i
-	if eq > maxKeyLen && eq-maxKeyLen > i {
-		limit = eq - maxKeyLen
+	// Scan back maxKeyLen+1 so a maximum-length key (which validKey accepts) is
+	// still recognized at the boundary.
+	if span := uint32(maxKeyLen) + 1; eq > span && eq-span > i {
+		limit = eq - span
 	}
 	for j := eq; j > limit; j-- {
 		if data[j-1] != ' ' {
@@ -106,7 +105,8 @@ func findKeyBeforeEquals(data []byte, i, eq uint32) (uint32, bool) {
 }
 
 // findValueEnd scans forward for the next " key=" boundary. Bounded by
-// maxEqualsScanned for DoS resistance.
+// maxEqualsScanned for DoS resistance; escaped "\=" and adjacent "==" do not
+// count against the budget, since they are never key separators.
 func findValueEnd(data []byte, start, end uint32) uint32 {
 	if start >= end {
 		return end
@@ -118,12 +118,7 @@ func findValueEnd(data []byte, start, end uint32) uint32 {
 		if idx < 0 {
 			return trimTrailingSpaces(data, start, end)
 		}
-		eq := i + uint32(idx&math.MaxUint32)
-
-		budget--
-		if budget <= 0 {
-			return trimTrailingSpaces(data, start, end)
-		}
+		eq := i + u32(idx)
 
 		if isEscapedDelim(data, eq, start) {
 			i = eq + 1
@@ -133,6 +128,11 @@ func findValueEnd(data []byte, start, end uint32) uint32 {
 		if eq <= i+1 {
 			i = eq + 1
 			continue
+		}
+
+		budget--
+		if budget <= 0 {
+			return trimTrailingSpaces(data, start, end)
 		}
 
 		if sp, ok := findKeyBeforeEquals(data, i, eq); ok {

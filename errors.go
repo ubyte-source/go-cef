@@ -45,8 +45,9 @@ func (e *ParseError) Error() string {
 // Unwrap returns the underlying sentinel error for use with errors.Is.
 func (e *ParseError) Unwrap() error { return e.Err }
 
+// makeError returns a fresh *ParseError per failure: independent errors are
+// safe to retain and are never mutated by a later Parse. Allocates only on
+// the failure path.
 func (p *Parser) makeError(pos uint32, sentinel error) *ParseError {
-	p.parseErr.Err = sentinel
-	p.parseErr.Position = pos
-	return &p.parseErr
+	return &ParseError{Err: sentinel, Position: pos}
 }

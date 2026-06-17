@@ -765,10 +765,12 @@ func TestVersionDigitsAllBranches(t *testing.T) {
 		v    Version
 		want int
 	}{
-		{0, 1}, {9, 1}, // v < 10
+		{InvalidVersion, 1}, // negative clamps to "0"
+		{0, 1}, {9, 1},      // v < 10
 		{10, 2}, {99, 2}, // v < 100
 		{100, 3}, {999, 3}, // v < 1000
-		{1000, 4}, // v >= 1000
+		{1000, 4}, {9999, 4}, // 4 digits
+		{10000, 5}, {1000000, 7}, // 5+ digits must be counted exactly
 	}
 	for _, tt := range tests {
 		got := versionDigits(tt.v)
@@ -826,5 +828,90 @@ func TestMarshalTextHighVersion(t *testing.T) {
 	}
 	if e2.Version != 99 {
 		t.Errorf("version after round-trip: got %d, want 99", e2.Version)
+	}
+}
+
+// Clone/CloneTo of a valid all-empty-header event keeps raw non-nil so
+// MarshalText/String still reproduce it.
+func TestCloneAllEmptyHeader(t *testing.T) {
+	m := NewParser()
+	e, err := m.Parse([]byte("CEF:0||||||"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantMarshal, err := e.MarshalText()
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantString := e.String()
+
+	c := e.Clone()
+	if !c.Valid() {
+		t.Error("clone of valid event should be valid")
+	}
+	gotClone, err := c.MarshalText()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(gotClone, wantMarshal) {
+		t.Errorf("Clone MarshalText = %q, want %q", gotClone, wantMarshal)
+	}
+	if got := c.String(); got != wantString {
+		t.Errorf("Clone String = %q, want %q", got, wantString)
+	}
+
+	var dst Event
+	e.CloneTo(&dst)
+	if !dst.Valid() {
+		t.Error("CloneTo of valid event should be valid")
+	}
+	gotDst, err := dst.MarshalText()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(gotDst, wantMarshal) {
+		t.Errorf("CloneTo MarshalText = %q, want %q", gotDst, wantMarshal)
+	}
+}
+
+// A clone must hold no stale offset: empty header spans are reset to Span{}.
+func TestCloneNormalizesEmptySpans(t *testing.T) {
+	m := NewParser()
+	e, err := m.Parse([]byte("CEF:0|VendorNameHere|prod|dv|cls||"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := e.Clone()
+	for name, s := range map[string]Span{"Name": c.Name, "Severity": c.Severity} {
+		if s != (Span{}) {
+			t.Errorf("%s empty span not normalized: %v", name, s)
+		}
+		if int(s.End) > len(c.raw) {
+			t.Errorf("%s span %v out of clone buffer (len %d)", name, s, len(c.raw))
+		}
+	}
+	assertSpan(t, c, c.Vendor, "VendorNameHere")
+	assertSpan(t, c, c.ClassID, "cls")
+}
+
+// A best-effort event with an unparseable version must not marshal to "CEF:-1".
+func TestMarshalTextBestEffortInvalidVersion(t *testing.T) {
+	m := NewParser(WithBestEffort())
+	e, err := m.Parse([]byte("CEF:01|V|P|1|1|N|5|")) // leading zero -> InvalidVersion
+	if err == nil {
+		t.Fatal("expected a version error")
+	}
+	if e.Version != InvalidVersion {
+		t.Fatalf("Version = %d, want InvalidVersion", e.Version)
+	}
+	out, merr := e.MarshalText()
+	if merr != nil {
+		t.Fatal(merr)
+	}
+	if bytes.Contains(out, []byte("CEF:-1")) {
+		t.Errorf("marshaled an invalid version token: %q", out)
+	}
+	if _, rerr := NewParser().Parse(out); rerr != nil {
+		t.Errorf("re-parse of marshaled output %q failed: %v", out, rerr)
 	}
 }

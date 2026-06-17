@@ -3,9 +3,7 @@ package cef
 import (
 	"bytes"
 	"encoding/binary"
-	"errors"
 	"iter"
-	"math"
 	"slices"
 	"strconv"
 	"strings"
@@ -34,7 +32,6 @@ func (v Version) String() string {
 // Parser is a reusable CEF parser. Not safe for concurrent use.
 // The *Event returned by Parse is valid until the next Parse call.
 type Parser struct {
-	parseErr      ParseError
 	msg           Event
 	bestEffort    bool
 	maxExtensions int
@@ -165,13 +162,14 @@ func (e *Event) AppendBytes(dst []byte, s Span) []byte {
 	return append(dst, e.raw[s.Start:s.End]...)
 }
 
-// Ext looks up an extension by byte-slice key. Zero-alloc.
+// Ext looks up an extension by byte-slice key, returning the first occurrence
+// of a repeated key. Zero-alloc.
 func (e *Event) Ext(key []byte) (Span, bool) {
 	if e.raw == nil || len(key) == 0 {
 		return Span{}, false
 	}
 	pack := keyPackBytes(key)
-	keyLen := uint32(len(key) & math.MaxUint32)
+	keyLen := u32(len(key))
 	for i := range e.ExtCount {
 		if e.extPacks[i] != pack {
 			continue
@@ -187,13 +185,14 @@ func (e *Event) Ext(key []byte) (Span, bool) {
 	return Span{}, false
 }
 
-// ExtString looks up an extension by string key. Zero-alloc.
+// ExtString looks up an extension by string key, returning the first
+// occurrence of a repeated key. Zero-alloc.
 func (e *Event) ExtString(key string) (Span, bool) {
 	if e.raw == nil || key == "" {
 		return Span{}, false
 	}
 	pack := keyPackString(key)
-	keyLen := uint32(len(key) & math.MaxUint32)
+	keyLen := u32(len(key))
 	for i := range e.ExtCount {
 		if e.extPacks[i] != pack {
 			continue
@@ -236,7 +235,14 @@ func (e *Event) Clone() *Event {
 	*c = *e
 	lo, hi := e.usedRange()
 	if lo >= hi {
-		c.raw = nil
+		// Valid event with no referenced bytes: keep a non-nil empty buffer so
+		// MarshalText/String still reproduce it; nil for an empty Event.
+		if e.raw != nil {
+			c.raw = []byte{}
+		} else {
+			c.raw = nil
+		}
+		c.rebase(0)
 		return c
 	}
 	c.raw = make([]byte, hi-lo)
@@ -253,7 +259,16 @@ func (e *Event) CloneTo(dst *Event) *Event {
 	*dst = *e
 	needed := int(hi - lo)
 	if needed == 0 {
-		dst.raw = nil
+		// Mirror Clone: non-nil empty buffer for a valid event, nil otherwise.
+		if e.raw != nil {
+			dst.raw = raw[:0]
+			if dst.raw == nil {
+				dst.raw = []byte{}
+			}
+		} else {
+			dst.raw = nil
+		}
+		dst.rebase(0)
 		return dst
 	}
 	if cap(raw) >= needed {
@@ -270,7 +285,7 @@ func (e *Event) usedRange() (lo, hi uint32) {
 	if e.raw == nil {
 		return 0, 0
 	}
-	lo = uint32(len(e.raw) & math.MaxUint32)
+	lo = u32(len(e.raw))
 	hi = 0
 	hs := [6]Span{e.Vendor, e.Product, e.DevVersion, e.ClassID, e.Name, e.Severity}
 	for _, s := range hs {
@@ -299,11 +314,10 @@ func (e *Event) usedRange() (lo, hi uint32) {
 }
 
 func (e *Event) rebase(offset uint32) {
-	if offset == 0 {
-		return
-	}
 	for _, s := range [...]*Span{&e.Vendor, &e.Product, &e.DevVersion, &e.ClassID, &e.Name, &e.Severity} {
 		if s.IsEmpty() {
+			// Drop stale offsets so empty fields never point outside the clone.
+			*s = Span{}
 			continue
 		}
 		s.Start -= offset
@@ -319,7 +333,10 @@ func (e *Event) rebase(offset uint32) {
 
 func (e *Event) appendHeader(dst []byte) []byte {
 	dst = append(dst, "CEF:"...)
-	dst = strconv.AppendInt(dst, int64(e.Version), 10)
+	// Clamp InvalidVersion (-1) to 0 so a best-effort partial event never emits
+	// the non-re-parseable "CEF:-1".
+	v := max(e.Version, 0)
+	dst = strconv.AppendInt(dst, int64(v), 10)
 	hs := [6]Span{e.Vendor, e.Product, e.DevVersion, e.ClassID, e.Name, e.Severity}
 	for _, s := range hs {
 		dst = append(dst, '|')
@@ -373,18 +390,18 @@ func (e *Event) estimateTextLen() int {
 	return n
 }
 
+// versionDigits returns the byte count appendHeader emits for the version
+// (negative clamps to "0"; all digits counted).
 func versionDigits(v Version) int {
-	switch {
-	case v < 0:
-		return 2
-	case v < 10:
+	if v < 10 {
 		return 1
-	case v < 100:
-		return 2
-	case v < 1000:
-		return 3
 	}
-	return 4
+	n := 0
+	for v > 0 {
+		v /= 10
+		n++
+	}
+	return n
 }
 
 // MarshalText implements encoding.TextMarshaler.
@@ -398,11 +415,6 @@ func (e *Event) UnmarshalText(text []byte) error {
 	p.maxExtensions = MaxExtensions
 	parsed, err := p.Parse(buf)
 	if err != nil {
-		var pe *ParseError
-		if errors.As(err, &pe) {
-			cp := *pe
-			return &cp
-		}
 		return err
 	}
 	*e = *parsed
@@ -489,4 +501,11 @@ func keyPackString(key string) uint32 {
 		h |= uint32(key[i]) << (i * 8)
 	}
 	return h
+}
+
+// u32 narrows a non-negative length or offset (bounded by the input size, which
+// Parse caps at math.MaxUint32) to uint32. A plain conversion avoids the
+// "n & math.MaxUint32" form, which does not compile on 32-bit GOARCHs.
+func u32(n int) uint32 {
+	return uint32(n) //nolint:gosec // bounded non-negative length/offset
 }

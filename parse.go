@@ -20,10 +20,10 @@ func (p *Parser) Parse(input []byte) (*Event, error) {
 	if len(input) == 0 {
 		return p.fail(p.makeError(0, ErrEmpty))
 	}
-	if len(input) > math.MaxUint32 {
+	if uint64(len(input)) > math.MaxUint32 {
 		return p.fail(p.makeError(0, ErrInputTooLarge))
 	}
-	n := uint32(len(input) & math.MaxUint32)
+	n := u32(len(input))
 
 	pos, err := p.parseVersion(input, n)
 	if err != nil {
@@ -123,7 +123,7 @@ func scanField(input []byte, pos, n uint32) uint32 {
 		if idx < 0 {
 			return n
 		}
-		q := pos + uint32(idx&math.MaxUint32)
+		q := pos + u32(idx)
 		if !isEscapedDelim(input, q, start) {
 			return q
 		}

@@ -21,7 +21,8 @@ var extEscapes = func() escapeTable {
 }()
 
 // UnescapeHeader unescapes a CEF header field (\| -> |, \\ -> \).
-// Returns raw unchanged if no '\' is present; else writes into dst.
+// Returns raw unchanged (aliasing the input) if no '\' is present; otherwise
+// writes into dst. dst must not overlap raw.
 func UnescapeHeader(raw, dst []byte) []byte {
 	if bytes.IndexByte(raw, '\\') < 0 {
 		return raw
@@ -31,6 +32,8 @@ func UnescapeHeader(raw, dst []byte) []byte {
 
 // UnescapeExtValue unescapes a CEF extension value
 // (\= -> =, \\ -> \, \n -> LF, \r -> CR).
+// Returns raw unchanged (aliasing the input) if no '\' is present; otherwise
+// writes into dst. dst must not overlap raw.
 func UnescapeExtValue(raw, dst []byte) []byte {
 	if bytes.IndexByte(raw, '\\') < 0 {
 		return raw
