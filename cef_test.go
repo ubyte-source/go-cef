@@ -2,916 +2,1414 @@ package cef
 
 import (
 	"bytes"
+	"errors"
+	"fmt"
+	"math"
+	"strconv"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
-// ---------------------------------------------------------------------------
-// Test helpers (shared across all internal _test.go files in package cef)
-// ---------------------------------------------------------------------------
+// testEvent is the event most cef.go tests read.
+const testEvent = `CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|10|` +
+	`src=10.0.0.1 dst=2.1.2.2 spt=1232 msg=a \= b`
 
-func assertSpan(t *testing.T, e *Event, s Span, want string) {
-	t.Helper()
-	got := e.Text(s)
-	if got != want {
-		t.Errorf("span: got %q, want %q", got, want)
+// parsed returns an Event parsed from line, failing t on a fault.
+func parsed(tb testing.TB, line string) *Event {
+	tb.Helper()
+	e := new(Event)
+	if err := e.Parse([]byte(line), MaxExtensions); err != nil {
+		tb.Fatalf("Parse(%q) = %v, want nil", line, err)
+	}
+	return e
+}
+
+// fields returns the bytes of every header field and pair of e, with its version,
+// HeaderComplete and pair count, as one comparable text.
+func fields(e *Event) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "v%d headerComplete=%t n=%d", e.Version(), e.HeaderComplete(), e.ExtCount())
+	header := [...]Span{e.DeviceVendor(), e.DeviceProduct(), e.DeviceVersion(), e.DeviceEventClassID(),
+		e.Name(), e.Severity()}
+	for _, s := range header {
+		fmt.Fprintf(&b, "|%q", e.Bytes(s))
+	}
+	for k, v := range e.All() {
+		fmt.Fprintf(&b, " %q=%q", e.Bytes(k), e.Bytes(v))
+	}
+	return b.String()
+}
+
+func TestVersionStringIsDecimal(t *testing.T) {
+	for _, v := range []Version{0, 1, 9, 10, 99, 100, 9999, -1} {
+		if got, want := v.String(), strconv.Itoa(int(v)); got != want {
+			t.Errorf("Version(%d).String() = %q, want %q", int(v), got, want)
+		}
+	}
+	assertAllocs(t, 0, func() { _ = Version(99).String() })
+	assertAllocs(t, 1, func() { _ = Version(100).String() })
+}
+
+func TestSpanLenAndIsEmpty(t *testing.T) {
+	for _, tc := range []struct {
+		s     Span
+		len   uint32
+		empty bool
+	}{
+		{Span{Start: 2, End: 5}, 3, false},
+		{Span{Start: 4, End: 5}, 1, false},
+		{Span{Start: 5, End: 5}, 0, true},
+		{Span{}, 0, true},
+		{Span{Start: 6, End: 5}, 0, true},
+		{Span{Start: math.MaxUint32, End: 7}, 0, true},
+		{Span{Start: 0, End: math.MaxUint32}, math.MaxUint32, false},
+	} {
+		if got := tc.s.Len(); got != tc.len {
+			t.Errorf("%v.Len() = %d, want %d", tc.s, got, tc.len)
+		}
+		if got := tc.s.IsEmpty(); got != tc.empty {
+			t.Errorf("%v.IsEmpty() = %t, want %t", tc.s, got, tc.empty)
+		}
 	}
 }
 
-func assertExt(t *testing.T, e *Event, key, want string) {
-	t.Helper()
-	span, ok := e.ExtString(key)
-	if !ok {
-		t.Fatalf("extension %q not found (extCount=%d)", key, e.ExtCount)
+func TestSpanAndExtPairString(t *testing.T) {
+	s := Span{Start: 4294967295, End: 7}
+	if got := s.String(); got != "[4294967295:7]" {
+		t.Errorf("Span.String() = %q, want %q", got, "[4294967295:7]")
 	}
-	got := e.Text(span)
-	if got != want {
-		t.Errorf("ext %q: got %q, want %q", key, got, want)
+	p := ExtPair{Key: Span{Start: 1, End: 4}, Value: Span{Start: 5, End: 4294967295}}
+	if got := p.String(); got != "[1:4]=[5:4294967295]" {
+		t.Errorf("ExtPair.String() = %q, want %q", got, "[1:4]=[5:4294967295]")
 	}
-}
-
-// ---------------------------------------------------------------------------
-// Span & ExtPair
-// ---------------------------------------------------------------------------
-
-func TestSpanMethods(t *testing.T) {
-	s := Span{Start: 5, End: 10}
-	if s.Len() != 5 {
-		t.Errorf("Len: got %d, want 5", s.Len())
-	}
-	if s.IsEmpty() {
-		t.Error("expected not empty")
-	}
-	empty := Span{Start: 3, End: 3}
-	if !empty.IsEmpty() {
-		t.Error("expected empty")
-	}
-	if empty.Len() != 0 {
-		t.Errorf("Len: got %d, want 0", empty.Len())
-	}
-}
-
-func TestSpanLenInverted(t *testing.T) {
-	s := Span{Start: 10, End: 5}
-	if s.Len() != 0 {
-		t.Errorf("inverted span Len: got %d, want 0", s.Len())
-	}
-	if !s.IsEmpty() {
-		t.Error("inverted span should be empty")
-	}
-}
-
-func TestSpanString(t *testing.T) {
-	s := Span{Start: 5, End: 10}
-	got := s.String()
-	want := "[5:10]"
-	if got != want {
-		t.Errorf("Span.String() = %q, want %q", got, want)
-	}
-}
-
-func TestExtPairString(t *testing.T) {
-	p := ExtPair{Key: Span{5, 10}, Value: Span{11, 20}}
-	got := p.String()
-	want := "[5:10]=[11:20]"
-	if got != want {
+	widest := Span{Start: math.MaxUint32, End: math.MaxUint32}
+	longest := ExtPair{Key: widest, Value: widest}
+	if got, want := longest.String(), "[4294967295:4294967295]=[4294967295:4294967295]"; got != want {
 		t.Errorf("ExtPair.String() = %q, want %q", got, want)
 	}
+	var text string
+	assertAllocs(t, 1, func() { text = s.String() })
+	assertAllocs(t, 1, func() { text = p.String() })
+	assertAllocs(t, 1, func() { text = widest.String() })
+	assertAllocs(t, 1, func() { text = longest.String() })
+	_ = text
+	assertAllocs(t, 0, func() { _ = s.Len() })
+	assertAllocs(t, 0, func() { _ = s.IsEmpty() })
 }
 
-// ---------------------------------------------------------------------------
-// Event accessors (Bytes, Text, Ext, ExtString, ExtAt, Extensions, All)
-// ---------------------------------------------------------------------------
-
-func TestGetOutOfRange(t *testing.T) {
-	m := NewParser()
-	e, err := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|src=1.2.3.4`))
-	if err != nil {
-		t.Fatal(err)
+func TestEventAccessorsReadTheHeader(t *testing.T) {
+	e := parsed(t, testEvent)
+	for _, tc := range []struct {
+		name string
+		got  Span
+		want string
+	}{
+		{"DeviceVendor", e.DeviceVendor(), "Security"},
+		{"DeviceProduct", e.DeviceProduct(), "threatmanager"},
+		{"DeviceVersion", e.DeviceVersion(), "1.0"},
+		{"DeviceEventClassID", e.DeviceEventClassID(), "100"},
+		{"Name", e.Name(), "worm successfully stopped"},
+		{"Severity", e.Severity(), "10"},
+	} {
+		if got := e.Text(tc.got); got != tc.want {
+			t.Errorf("%s() = %q, want %q", tc.name, got, tc.want)
+		}
 	}
-	bad := Span{Start: 0, End: 999999}
-	if got := e.Bytes(bad); got != nil {
-		t.Errorf("expected nil for out-of-range Span, got %v", got)
+	if e.Version() != 0 || !e.HeaderComplete() || e.ExtCount() != 4 {
+		t.Errorf("Version(), HeaderComplete(), ExtCount() = %d, %t, %d, want 0, true, 4", e.Version(),
+			e.HeaderComplete(), e.ExtCount())
 	}
-	if got := e.Text(bad); got != "" {
-		t.Errorf("expected empty string for out-of-range Span, got %q", got)
-	}
+	assertAllocs(t, 0, func() {
+		_, _, _, _, _ = e.DeviceVendor(), e.DeviceProduct(), e.DeviceVersion(), e.DeviceEventClassID(), e.Name()
+		_, _, _, _ = e.Severity(), e.Version(), e.HeaderComplete(), e.ExtCount()
+	})
 }
 
-func TestGetNilEvent(t *testing.T) {
-	e := &Event{}
-	if got := e.Bytes(Span{0, 5}); got != nil {
-		t.Errorf("expected nil for nil-raw Event, got %v", got)
+func TestEventZeroValueIsEmpty(t *testing.T) {
+	var e Event
+	if got, want := fields(&e), `v0 headerComplete=false n=0|""|""|""|""|""|""`; got != want {
+		t.Errorf("fields of the zero Event = %s, want %s", got, want)
 	}
-}
-
-func TestGetInvertedSpan(t *testing.T) {
-	m := NewParser()
-	e, err := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|`))
-	if err != nil {
-		t.Fatal(err)
+	if s, ok := e.ExtString("src"); ok {
+		t.Errorf("ExtString(src) on the zero Event = %v, %t, want false", s, ok)
 	}
-	if got := e.Bytes(Span{Start: 10, End: 5}); got != nil {
-		t.Errorf("expected nil for inverted Span, got %v", got)
-	}
-}
-
-func TestExtLookupNotFound(t *testing.T) {
-	m := NewParser()
-	e, err := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|src=1.2.3.4`))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, ok := e.ExtString("nonexistent"); ok {
-		t.Error("expected not found")
-	}
-	if _, ok := e.Ext([]byte("nonexistent")); ok {
-		t.Error("expected not found")
-	}
-}
-
-func TestExtNilRaw(t *testing.T) {
-	e := &Event{}
-	if _, ok := e.Ext([]byte("src")); ok {
-		t.Error("expected false for nil-raw Ext")
-	}
-	if _, ok := e.ExtString("src"); ok {
-		t.Error("expected false for nil-raw ExtString")
+	for _, s := range []Span{{}, {Start: 0, End: 1}} {
+		if b := e.Bytes(s); b == nil || len(b) != 0 || cap(b) != 0 {
+			t.Errorf("Bytes(%v) on the zero Event = %q cap %d (nil %t), want an empty view", s, b, cap(b), b == nil)
+		}
 	}
 }
 
-const keySrc = "src"
+// testEventPairs are the pairs of testEvent in input order.
+func testEventPairs() []string {
+	return []string{"src=10.0.0.1", "dst=2.1.2.2", "spt=1232", `msg=a \= b`}
+}
 
-func TestExtCount(t *testing.T) {
-	m := NewParser()
-	e, err := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|src=1.2.3.4 dst=2.2.2.2`))
-	if err != nil {
-		t.Fatal(err)
+func TestEventExtAtFollowsTheInput(t *testing.T) {
+	e := parsed(t, testEvent)
+	for i, want := range testEventPairs() {
+		if p, ok := e.ExtAt(i); !ok || e.Text(p.Key)+"="+e.Text(p.Value) != want {
+			t.Errorf("ExtAt(%d) = %q=%q, %t, want %q", i, e.Bytes(p.Key), e.Bytes(p.Value), ok, want)
+		}
 	}
-	if e.ExtCount != 2 {
-		t.Fatalf("expected 2, got %d", e.ExtCount)
+	for _, i := range []int{-1, 4, math.MaxInt} {
+		if p, ok := e.ExtAt(i); ok || p != (ExtPair{}) {
+			t.Errorf("ExtAt(%d) = %v, %t, want the zero pair and false", i, p, ok)
+		}
 	}
-	p, ok := e.ExtAt(0)
-	if !ok || e.Text(p.Key) != keySrc {
-		t.Errorf("first key: got %q, want src", e.Text(p.Key))
+	var p ExtPair
+	assertAllocs(t, 0, func() { p, _ = e.ExtAt(3) })
+	if e.Text(p.Key) != "msg" {
+		t.Errorf("ExtAt(3) key = %q, want msg", e.Bytes(p.Key))
 	}
 }
 
-func TestExtCountEmpty(t *testing.T) {
-	m := NewParser()
-	e, err := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|`))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if e.ExtCount != 0 {
-		t.Fatalf("expected 0, got %d", e.ExtCount)
-	}
-}
-
-func TestExtAt(t *testing.T) {
-	m := NewParser()
-	e, err := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|src=1.2.3.4 dst=2.2.2.2`))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	p, ok := e.ExtAt(0)
-	if !ok {
-		t.Fatal("ExtAt(0): expected ok")
-	}
-	if e.Text(p.Key) != "src" {
-		t.Errorf("ExtAt(0).Key: got %q, want src", e.Text(p.Key))
-	}
-	p, ok = e.ExtAt(1)
-	if !ok {
-		t.Fatal("ExtAt(1): expected ok")
-	}
-	if e.Text(p.Key) != "dst" {
-		t.Errorf("ExtAt(1).Key: got %q, want dst", e.Text(p.Key))
-	}
-	if _, ok = e.ExtAt(2); ok {
-		t.Error("ExtAt(2): expected not ok")
-	}
-	if _, ok = e.ExtAt(-1); ok {
-		t.Error("ExtAt(-1): expected not ok")
-	}
-}
-
-func TestExtAtEmpty(t *testing.T) {
-	e := &Event{}
-	if _, ok := e.ExtAt(0); ok {
-		t.Error("ExtAt on empty event: expected not ok")
-	}
-}
-
-func TestAllIterator(t *testing.T) {
-	m := NewParser()
-	e, err := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|src=1.2.3.4 dst=2.2.2.2 msg=hello`))
-	if err != nil {
-		t.Fatal(err)
-	}
-	var keys []string
+func TestEventAllFollowsTheInputAndStops(t *testing.T) {
+	e := parsed(t, testEvent)
+	want := testEventPairs()
+	var got []string
 	for k, v := range e.All() {
-		keys = append(keys, e.Text(k))
-		_ = v
-	}
-	if len(keys) != 3 {
-		t.Fatalf("expected 3 keys, got %d", len(keys))
-	}
-	if keys[0] != "src" || keys[1] != "dst" || keys[2] != "msg" {
-		t.Errorf("unexpected keys: %v", keys)
-	}
-}
-
-func TestAllIteratorBreakEarly(t *testing.T) {
-	m := NewParser()
-	e, err := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|src=1.2.3.4 dst=2.2.2.2 msg=hello`))
-	if err != nil {
-		t.Fatal(err)
-	}
-	count := 0
-	for range e.All() {
-		count++
-		if count == 1 {
+		got = append(got, e.Text(k)+"="+e.Text(v))
+		if len(got) == 2 {
 			break
 		}
 	}
-	if count != 1 {
-		t.Errorf("expected 1 iteration before break, got %d", count)
+	if strings.Join(got, " ") != strings.Join(want[:2], " ") {
+		t.Errorf("All() until the second pair = %q, want %q", got, want[:2])
 	}
-}
-
-func TestUsedRangeExtensionsOnly(t *testing.T) {
-	e := &Event{
-		raw:      []byte("key=value"),
-		ExtCount: 1,
-	}
-	e.extKeys[0] = Span{0, 3}
-	e.extVals[0] = Span{4, 9}
-	lo, hi := e.usedRange()
-	if lo != 0 || hi != 9 {
-		t.Errorf("usedRange: got [%d, %d), want [0, 9)", lo, hi)
-	}
-}
-
-// ---------------------------------------------------------------------------
-// Event.String()
-// ---------------------------------------------------------------------------
-
-func TestEventString(t *testing.T) {
-	m := NewParser()
-	e, err := m.Parse([]byte(`CEF:0|Cisco|CyberVision|4.0|100|Alert|5|src=1.2.3.4`))
-	if err != nil {
-		t.Fatal(err)
-	}
-	s := e.String()
-	for _, want := range []string{"Cisco", "ver=0", "exts=1", "devver=4.0", "classid=100"} {
-		if !strings.Contains(s, want) {
-			t.Errorf("String() missing %q: %s", want, s)
+	n := 0
+	assertAllocs(t, 0, func() {
+		n = 0
+		for range e.All() {
+			n++
 		}
-	}
-}
-
-func TestEventStringNil(t *testing.T) {
-	e := &Event{}
-	if s := e.String(); s != "Event{}" {
-		t.Errorf("expected Event{}, got %q", s)
-	}
-}
-
-func TestStringWithExtensions(t *testing.T) {
-	m := NewParser()
-	e, err := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|src=1.2.3.4 dst=2.2.2.2`))
-	if err != nil {
-		t.Fatal(err)
-	}
-	s := e.String()
-	if !strings.Contains(s, "src=1.2.3.4") {
-		t.Errorf("String() should contain extension sample, got: %s", s)
-	}
-}
-
-func TestStringTruncatesLongValues(t *testing.T) {
-	m := NewParser()
-	longVal := strings.Repeat("x", 50)
-	input := []byte(`CEF:0|V|P|1|100|N|5|msg=` + longVal)
-	e, err := m.Parse(input)
-	if err != nil {
-		t.Fatal(err)
-	}
-	s := e.String()
-	if strings.Contains(s, longVal) {
-		t.Error("String() should truncate long values")
-	}
-	if !strings.Contains(s, "...") {
-		t.Error("String() should contain '...' for truncated values")
-	}
-}
-
-func TestStringManyExtensions(t *testing.T) {
-	m := NewParser()
-	e, err := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|a=1 b=2 c=3 d=4 e=5`))
-	if err != nil {
-		t.Fatal(err)
-	}
-	s := e.String()
-	if !strings.Contains(s, " ...") {
-		t.Errorf("String() with >3 exts should contain ' ...' ellipsis, got: %s", s)
-	}
-}
-
-// ---------------------------------------------------------------------------
-// Version.String()
-// ---------------------------------------------------------------------------
-
-func TestVersionStringFastPath(t *testing.T) {
-	allocs0 := testing.AllocsPerRun(100, func() { _ = Version(0).String() })
-	if allocs0 > 0 {
-		t.Errorf("Version(0).String(): expected 0 allocs, got %f", allocs0)
-	}
-	allocs1 := testing.AllocsPerRun(100, func() { _ = Version(1).String() })
-	if allocs1 > 0 {
-		t.Errorf("Version(1).String(): expected 0 allocs, got %f", allocs1)
-	}
-	if Version(0).String() != "0" {
-		t.Errorf("Version(0).String() = %q", Version(0).String())
-	}
-	if Version(1).String() != "1" {
-		t.Errorf("Version(1).String() = %q", Version(1).String())
-	}
-	if Version(99).String() != "99" {
-		t.Errorf("Version(99).String() = %q", Version(99).String())
-	}
-}
-
-// ---------------------------------------------------------------------------
-// Reset
-// ---------------------------------------------------------------------------
-
-func TestReset(t *testing.T) {
-	m := NewParser()
-	e, err := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|src=1.2.3.4`))
-	if err != nil {
-		t.Fatal(err)
-	}
-	saved := e.Clone()
-	saved.Reset()
-	if saved.raw != nil {
-		t.Error("Reset: raw should be nil")
-	}
-	if saved.Version != InvalidVersion {
-		t.Error("Reset: Version should be InvalidVersion")
-	}
-	if saved.ExtCount != 0 {
-		t.Error("Reset: ExtCount should be 0")
-	}
-	if saved.Valid() {
-		t.Error("Reset: Valid() should return false")
-	}
-}
-
-// ---------------------------------------------------------------------------
-// Clone & CloneTo
-// ---------------------------------------------------------------------------
-
-func TestClone(t *testing.T) {
-	m := NewParser()
-	e, err := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|src=1.2.3.4 dst=2.2.2.2`))
-	if err != nil {
-		t.Fatal(err)
-	}
-	c := e.Clone()
-	if c.Version != e.Version {
-		t.Errorf("clone version: got %d, want %d", c.Version, e.Version)
-	}
-	if c.Text(c.Vendor) != e.Text(e.Vendor) {
-		t.Error("clone vendor mismatch")
-	}
-	if c.ExtCount != e.ExtCount {
-		t.Errorf("clone ext count: got %d, want %d", c.ExtCount, e.ExtCount)
-	}
-	assertExt(t, c, "src", "1.2.3.4")
-	assertExt(t, c, "dst", "2.2.2.2")
-	_, err = m.Parse([]byte(`CEF:0|X|Y|2|200|Z|9|a=b`))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if c.Text(c.Vendor) != "V" {
-		t.Error("clone was affected by subsequent parse")
-	}
-}
-
-func TestCloneIndependence(t *testing.T) {
-	m := NewParser()
-	e, err := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|src=1.2.3.4`))
-	if err != nil {
-		t.Fatal(err)
-	}
-	c := e.Clone()
-	_, err = m.Parse([]byte(`CEF:0|X|Y|2|200|Z|9|dst=9.9.9.9`))
-	if err != nil {
-		t.Fatal(err)
-	}
-	assertSpan(t, c, c.Vendor, "V")
-	assertExt(t, c, "src", "1.2.3.4")
-}
-
-func TestCloneCompactValues(t *testing.T) {
-	padding := strings.Repeat("x", 1000)
-	input := []byte(`CEF:0|V|P|1|100|` + padding + `|5|src=1.2.3.4`)
-	m := NewParser()
-	e, err := m.Parse(input)
-	if err != nil {
-		t.Fatal(err)
-	}
-	c := e.Clone()
-	assertSpan(t, c, c.Vendor, "V")
-	assertSpan(t, c, c.Product, "P")
-	assertSpan(t, c, c.Name, padding)
-	assertExt(t, c, "src", "1.2.3.4")
-	if len(c.raw) >= len(e.raw) {
-		t.Errorf("clone raw should be compact: clone=%d, original=%d", len(c.raw), len(e.raw))
-	}
-}
-
-func TestCloneNilRaw(t *testing.T) {
-	e := &Event{}
-	c := e.Clone()
-	if c.raw != nil {
-		t.Error("expected nil raw in clone of empty event")
-	}
-}
-
-func TestCloneTo(t *testing.T) {
-	m := NewParser()
-	e, err := m.Parse([]byte(`CEF:0|Cisco|ASA|9.16|430003|ACL deny|7|src=10.0.0.1 dst=2.1.2.2 act=Deny`))
-	if err != nil {
-		t.Fatal(err)
-	}
-	dst := &Event{}
-	result := e.CloneTo(dst)
-	if result != dst {
-		t.Error("CloneTo should return dst")
-	}
-	assertSpan(t, dst, dst.Vendor, "Cisco")
-	assertSpan(t, dst, dst.Product, "ASA")
-	assertExt(t, dst, "src", "10.0.0.1")
-	assertExt(t, dst, "act", "Deny")
-}
-
-func TestCloneToReusesBuffer(t *testing.T) {
-	m := NewParser()
-	e, err := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|src=1.2.3.4 dst=2.2.2.2`))
-	if err != nil {
-		t.Fatal(err)
-	}
-	dst := &Event{raw: make([]byte, 0, 4096)}
-	e.CloneTo(dst)
-	if cap(dst.raw) != 4096 {
-		t.Errorf("expected reused buffer cap=4096, got %d", cap(dst.raw))
-	}
-	assertSpan(t, dst, dst.Vendor, "V")
-	assertExt(t, dst, "src", "1.2.3.4")
-}
-
-func TestCloneToNilRaw(t *testing.T) {
-	e := &Event{}
-	dst := &Event{}
-	e.CloneTo(dst)
-	if dst.raw != nil {
-		t.Error("expected nil raw in CloneTo of empty event")
-	}
-}
-
-func TestCloneToZeroAlloc(t *testing.T) {
-	m := NewParser()
-	input := []byte(`CEF:0|V|P|1|100|N|5|src=1.2.3.4 dst=2.2.2.2`)
-	e, err := m.Parse(input)
-	if err != nil {
-		t.Fatal(err)
-	}
-	dst := &Event{raw: make([]byte, 0, 256)}
-	e.CloneTo(dst)
-	allocs := testing.AllocsPerRun(100, func() { e.CloneTo(dst) })
-	if allocs > 0 {
-		t.Errorf("expected 0 allocs after warmup, got %f", allocs)
-	}
-}
-
-// assertSpansEmpty checks that all given spans are empty.
-func assertSpansEmpty(t *testing.T, spans map[string]Span) {
-	t.Helper()
-	for name, s := range spans {
-		if !s.IsEmpty() {
-			t.Errorf("%s should be empty, got %s", name, s)
-		}
-	}
-}
-
-func TestCloneBestEffortPartialHeader(t *testing.T) {
-	m := NewParser(WithBestEffort())
-	e, err := m.Parse([]byte(`CEF:0|Vendor|Product`))
-	if err == nil {
-		t.Fatal("expected error")
-	}
-	if e == nil {
-		t.Fatal("expected non-nil event in best-effort mode")
-	}
-	c := e.Clone()
-	if c == nil {
-		t.Fatal("Clone returned nil")
-	}
-	assertSpan(t, c, c.Vendor, "Vendor")
-	assertSpan(t, c, c.Product, "Product")
-	assertSpansEmpty(t, map[string]Span{
-		"DevVersion": c.DevVersion,
-		"ClassID":    c.ClassID,
-		"Name":       c.Name,
-		"Severity":   c.Severity,
 	})
-	if got := c.Text(c.DevVersion); got != "" {
-		t.Errorf("DevVersion text: got %q, want empty", got)
-	}
-	if got, ok := c.SeverityNum(); got != 0 || ok {
-		t.Errorf("SeverityNum: got (%d, %v), want (0, false)", got, ok)
-	}
-	b, err := c.MarshalText()
-	if err != nil {
-		t.Fatalf("MarshalText: %v", err)
-	}
-	if b == nil {
-		t.Fatal("MarshalText returned nil")
+	if n != len(want) {
+		t.Errorf("pairs of All() = %d, want %d", n, len(want))
 	}
 }
 
-func TestCloneToBestEffortPartialHeader(t *testing.T) {
-	m := NewParser(WithBestEffort())
-	e, err := m.Parse([]byte(`CEF:0|Vendor|Product`))
-	if err == nil {
-		t.Fatal("expected error for truncated input")
-	}
-	if e == nil {
-		t.Fatal("expected non-nil event in best-effort mode")
-	}
-	dst := &Event{raw: make([]byte, 0, 256)}
-	e.CloneTo(dst)
-	assertSpan(t, dst, dst.Vendor, "Vendor")
-	if !dst.DevVersion.IsEmpty() {
-		t.Errorf("DevVersion should be empty, got %s", dst.DevVersion)
-	}
-}
-
-func TestCloneRebaseZeroOffset(t *testing.T) {
-	e := &Event{
-		raw:            []byte("CEF:0|V|P|1|100|N|5|"),
-		Version:        0,
-		Vendor:         Span{0, 3},
-		Product:        Span{4, 5},
-		DevVersion:     Span{6, 7},
-		ClassID:        Span{8, 11},
-		Name:           Span{12, 13},
-		Severity:       Span{14, 15},
-		headerComplete: true,
-	}
-	e.rebase(0)
-	if e.Vendor != (Span{0, 3}) {
-		t.Errorf("expected unchanged span, got %s", e.Vendor)
-	}
-}
-
-// ---------------------------------------------------------------------------
-// UnmarshalText / MarshalText
-// ---------------------------------------------------------------------------
-
-func TestUnmarshalText(t *testing.T) {
-	input := []byte(`CEF:0|Security|ThreatManager|1.0|100|worm stopped|10|src=10.0.0.1`)
-	var e Event
-	if err := e.UnmarshalText(input); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !e.Valid() {
-		t.Fatal("expected valid event")
-	}
-	assertSpan(t, &e, e.Vendor, "Security")
-	assertExt(t, &e, "src", "10.0.0.1")
-}
-
-func TestUnmarshalTextError(t *testing.T) {
-	var e Event
-	if err := e.UnmarshalText([]byte(`NOT CEF`)); err == nil {
-		t.Fatal("expected error for invalid CEF")
-	}
-}
-
-func TestUnmarshalTextEmpty(t *testing.T) {
-	var e Event
-	err := e.UnmarshalText([]byte{})
-	if err == nil {
-		t.Fatal("expected error")
-	}
-}
-
-func TestUnmarshalTextIndependentOfInput(t *testing.T) {
-	input := []byte(`CEF:0|V|P|1|100|N|5|src=1.2.3.4`)
-	var e Event
-	if err := e.UnmarshalText(input); err != nil {
-		t.Fatal(err)
-	}
-	copy(input, "XXXXXXXXXXXXXXXXXXXXXXXXXX")
-	assertSpan(t, &e, e.Vendor, "V")
-	assertExt(t, &e, "src", "1.2.3.4")
-}
-
-func TestUnescapeHeaderWithDstBuffer(t *testing.T) {
-	raw := []byte(`test \| value`)
-	dst := make([]byte, 0, 64)
-	got := UnescapeHeader(raw, dst)
-	if string(got) != "test | value" {
-		t.Errorf("got %q, want %q", got, "test | value")
-	}
-}
-
-func TestMarshalText(t *testing.T) {
-	m := NewParser()
-	input := []byte(`CEF:0|Security|ThreatManager|1.0|100|worm stopped|10|src=10.0.0.1 dst=2.1.2.2`)
-	e, err := m.Parse(input)
-	if err != nil {
-		t.Fatal(err)
-	}
-	got, err := e.MarshalText()
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !bytes.Equal(got, input) {
-		t.Errorf("MarshalText:\n got: %s\nwant: %s", got, input)
-	}
-}
-
-func TestMarshalTextHeaderOnly(t *testing.T) {
-	m := NewParser()
-	e, err := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|`))
-	if err != nil {
-		t.Fatal(err)
-	}
-	got, err := e.MarshalText()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(got) != `CEF:0|V|P|1|100|N|5|` {
-		t.Errorf("got %q", got)
-	}
-}
-
-func TestMarshalTextNilEvent(t *testing.T) {
-	e := &Event{}
-	got, err := e.MarshalText()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got != nil {
-		t.Errorf("expected nil, got %q", got)
-	}
-}
-
-func TestMarshalTextNoTrailingPipe(t *testing.T) {
-	m := NewParser()
-	e, err := m.Parse([]byte(`CEF:0|V|P|1|100|N|5`))
-	if err != nil {
-		t.Fatal(err)
-	}
-	got, err := e.MarshalText()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(got) != `CEF:0|V|P|1|100|N|5|` {
-		t.Errorf("got %q", got)
-	}
-}
-
-func TestMarshalTextEscapesPreserved(t *testing.T) {
-	m := NewParser()
-	input := []byte(`CEF:0|security|threatmanager|1.0|100|detected a \| in message|10|msg=equation is 2+2\=4`)
-	e, err := m.Parse(input)
-	if err != nil {
-		t.Fatal(err)
-	}
-	got, err := e.MarshalText()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Equal(got, input) {
-		t.Errorf("MarshalText:\n got: %s\nwant: %s", got, input)
-	}
-}
-
-func TestMarshalTextRoundTrip(t *testing.T) {
-	inputs := []string{
-		`CEF:0|Security|ThreatManager|1.0|100|worm stopped|10|src=10.0.0.1 dst=2.1.2.2`,
-		`CEF:0|Cisco|Cyber Vision|4.4.0|CiscoCVAlert|Alert|8|CiscoCVAlertType=Intrusion src=192.168.1.100`,
-		`CEF:0|Check Point|NGFW|R81.20|25000|Accept|3|src=10.0.0.100 dst=8.8.8.8 cp_severity=Low`,
-		`CEF:0|V|P|1|100|N|5|msg=hello world src=1.2.3.4`,
-		`CEF:0|V|P|1|100|N|5|`,
-		`CEF:0||||||5|`,
-		`CEF:1|Vendor|Product|1.0|100|Name|5|`,
-	}
-	m := NewParser()
-	for _, in := range inputs {
-		name := in
-		if len(name) > 40 {
-			name = name[:40]
+func TestEventExtReturnsTheLastDuplicate(t *testing.T) {
+	e := parsed(t, testHeaderOnly+"dvchost=first src=1 dvchost=last")
+	for _, got := range []func() (Span, bool){
+		func() (Span, bool) { return e.ExtString("dvchost") },
+		func() (Span, bool) { return e.Ext([]byte("dvchost")) },
+	} {
+		if s, ok := got(); !ok || e.Text(s) != "last" {
+			t.Errorf("lookup of a repeated key = %q, %t, want %q", e.Bytes(s), ok, "last")
 		}
-		t.Run(name, func(t *testing.T) {
-			e, err := m.Parse([]byte(in))
-			if err != nil {
-				t.Fatalf("parse: %v", err)
+	}
+}
+
+func TestEventExtComparesTheWholeKey(t *testing.T) {
+	e := parsed(t, testHeaderOnly+"abc=3 abcd=4 abcde=5 abcdf=6 x=1")
+	for _, tc := range []struct {
+		key   string
+		value string
+		ok    bool
+	}{
+		{"abc", "3", true},
+		{"abcd", "4", true},
+		{"abcde", "5", true},
+		{"abcdf", "6", true},
+		{"x", "1", true},
+		{"abcdg", "", false},
+		{"abc\x00", "", false},
+		{"ab", "", false},
+		{"", "", false},
+		{"abcdef", "", false},
+		{"Xbcd", "", false},
+		{"ebcd", "", false},
+		{"aXcd", "", false},
+		{"abXd", "", false},
+		{"abcX", "", false},
+		{"Xbcde", "", false},
+		{"Xbc", "", false},
+		{"aXc", "", false},
+		{"abX", "", false},
+		{"y", "", false},
+	} {
+		s, ok := e.ExtString(tc.key)
+		if ok != tc.ok || e.Text(s) != tc.value {
+			t.Errorf("ExtString(%q) = %q, %t, want %q, %t", tc.key, e.Bytes(s), ok, tc.value, tc.ok)
+		}
+		if bs, bok := e.Ext([]byte(tc.key)); bs != s || bok != ok {
+			t.Errorf("Ext(%q) = %v, %t, want ExtString's %v, %t", tc.key, bs, bok, s, ok)
+		}
+	}
+	assertAllocs(t, 0, func() { _, _ = e.ExtString("abcde") })
+	key := []byte("abcdf")
+	assertAllocs(t, 0, func() { _, _ = e.Ext(key) })
+}
+
+func TestEventBytesReadsOnlyItsBytes(t *testing.T) {
+	e := parsed(t, testHeaderOnly)
+	n := uint32(len(testHeaderOnly))
+	for _, tc := range []struct {
+		s    Span
+		want string
+	}{
+		{Span{Start: 0, End: 4}, "CEF:"},
+		{Span{Start: n - 2, End: n}, "5|"},
+		{Span{Start: n, End: n}, ""},
+		{Span{Start: 3, End: 2}, ""},
+		{Span{Start: 1, End: 0}, ""},
+		{Span{Start: 0, End: n + 1}, ""},
+		{Span{Start: 0, End: 1 << 31}, ""},
+		{Span{Start: 1 << 31, End: 1<<31 + 1}, ""},
+		{Span{Start: math.MaxUint32, End: math.MaxUint32}, ""},
+	} {
+		got := e.Bytes(tc.s)
+		if got == nil || string(got) != tc.want || cap(got) != len(tc.want) {
+			t.Errorf("Bytes(%v) = %q cap %d (nil %t), want %q cap %d", tc.s, got, cap(got), got == nil,
+				tc.want, len(tc.want))
+		}
+		if text := e.Text(tc.s); text != tc.want {
+			t.Errorf("Text(%v) = %q, want %q", tc.s, text, tc.want)
+		}
+		if b := e.AppendBytes([]byte("x"), tc.s); string(b) != "x"+tc.want {
+			t.Errorf("AppendBytes(x, %v) = %q, want %q", tc.s, b, "x"+tc.want)
+		}
+	}
+	prefix := e.Bytes(Span{Start: 0, End: 4})
+	_ = append(prefix, '!')
+	if got := string(e.Bytes(Span{Start: 0, End: 5})); got != "CEF:0" {
+		t.Errorf("Bytes([0:5]) after an append to Bytes([0:4]) = %q, want %q", got, "CEF:0")
+	}
+	dst := make([]byte, 0, 64)
+	assertAllocs(t, 0, func() { _ = e.Bytes(Span{Start: 6, End: 12}) })
+	var text string
+	assertAllocs(t, 1, func() { text = e.Text(Span{Start: 6, End: 12}) })
+	assertAllocs(t, 1, func() { text = e.Text(Span{Start: 6, End: 8}) })
+	assertAllocs(t, 0, func() { text = e.Text(Span{Start: 6, End: 7}) })
+	assertAllocs(t, 0, func() { text = e.Text(Span{Start: 6, End: 6}) })
+	_ = text
+	assertAllocs(t, 0, func() { _ = e.AppendBytes(dst, Span{Start: 6, End: 12}) })
+}
+
+func TestEventCloneOwnsItsBytes(t *testing.T) {
+	input := []byte(testEvent)
+	var e Event
+	if err := e.Parse(input, MaxExtensions); err != nil {
+		t.Fatalf("Parse = %v, want nil", err)
+	}
+	want := fields(&e)
+	c := e.Clone()
+	for i := range input {
+		input[i] = 'X'
+	}
+	if got := fields(c); got != want {
+		t.Errorf("Clone after the input changed = %s, want %s", got, want)
+	}
+	const end = uint32(len(testEvent) - len("CEF:0|"))
+	if got, covered := c.Bytes(Span{End: end}), testEvent[len("CEF:0|"):]; string(got) != covered {
+		t.Errorf("bytes of the Clone = %q, want %q", got, covered)
+	}
+	if got := c.Bytes(Span{End: end + 1}); got == nil || len(got) != 0 || cap(got) != 0 {
+		t.Errorf("Clone: Bytes past the covered bytes = %q cap %d (nil %t), want an empty view", got, cap(got),
+			got == nil)
+	}
+}
+
+func TestEventCloneRebasesTheSpans(t *testing.T) {
+	e := parsed(t, "CEF:0||P|1|C|N|5|k=v")
+	c := e.Clone()
+	got := [...]Span{c.DeviceVendor(), c.DeviceProduct(), c.DeviceVersion(), c.DeviceEventClassID(), c.Name(),
+		c.Severity()}
+	want := [...]Span{{0, 0}, {1, 2}, {3, 4}, {5, 6}, {7, 8}, {9, 10}}
+	if got != want {
+		t.Errorf("Clone header spans = %v, want %v", got, want)
+	}
+	if p, ok := c.ExtAt(0); !ok || p != (ExtPair{Key: Span{11, 12}, Value: Span{13, 14}}) {
+		t.Errorf("Clone ExtAt(0) = %v, %t, want [11:12]=[13:14]", p, ok)
+	}
+}
+
+func TestEventCloneToWritesOnlyDst(t *testing.T) {
+	a, b := []byte(testEvent), []byte(testHeaderOnly+"k=v")
+	var e, dst Event
+	if err := e.Parse(a, MaxExtensions); err != nil {
+		t.Fatalf("Parse = %v, want nil", err)
+	}
+	if err := dst.Parse(b, MaxExtensions); err != nil {
+		t.Fatalf("Parse = %v, want nil", err)
+	}
+	want := fields(&e)
+	if got := e.CloneTo(&dst); got != &dst || fields(&dst) != want {
+		t.Errorf("CloneTo = %s, want %s returned as dst", fields(&dst), want)
+	}
+	if string(a) != testEvent || string(b) != testHeaderOnly+"k=v" {
+		t.Errorf("inputs after CloneTo = %q, %q, want %q, %q", a, b, testEvent, testHeaderOnly+"k=v")
+	}
+	other := []byte(testHeaderOnly + "a=1 b=2")
+	if err := e.Parse(other, MaxExtensions); err != nil {
+		t.Fatalf("Parse = %v, want nil", err)
+	}
+	if fields(&dst) != want {
+		t.Errorf("copy after e parses again = %s, want %s", fields(&dst), want)
+	}
+}
+
+func TestEventCloneToSelfDetaches(t *testing.T) {
+	input := []byte(testEvent)
+	var e Event
+	if err := e.Parse(input, MaxExtensions); err != nil {
+		t.Fatalf("Parse = %v, want nil", err)
+	}
+	want := fields(&e)
+	e.CloneTo(&e)
+	for i := range input {
+		input[i] = 'X'
+	}
+	if got := fields(&e); got != want {
+		t.Errorf("e.CloneTo(e) after the input changed = %s, want %s", got, want)
+	}
+	if got := fields(e.CloneTo(&e)); got != want {
+		t.Errorf("a second e.CloneTo(e) = %s, want %s", got, want)
+	}
+}
+
+func TestEventCloneToDropsLargeOwnedBytes(t *testing.T) {
+	large := []byte(testHeaderOnly + "msg=" + strings.Repeat("x", 100<<10))
+	var dst Event
+	if err := dst.UnmarshalText(large); err != nil {
+		t.Fatalf("UnmarshalText = %v, want nil", err)
+	}
+	if cap(dst.owned) < len(large) {
+		t.Fatalf("owned bytes = %d, want room for %d", cap(dst.owned), len(large))
+	}
+	e := parsed(t, testEvent)
+	e.CloneTo(&dst)
+	if cap(dst.owned) > 64<<10 {
+		t.Errorf("owned bytes after a small copy = %d, want at most 65536", cap(dst.owned))
+	}
+	var big Event
+	if err := big.Parse(large, MaxExtensions); err != nil {
+		t.Fatalf("Parse = %v, want nil", err)
+	}
+	var keep Event
+	big.CloneTo(&keep)
+	assertAllocs(t, 0, func() { big.CloneTo(&keep) })
+	held := make([]byte, 100<<10)
+	assertAllocs(t, 1, func() {
+		dst.owned = held
+		e.CloneTo(&dst)
+	})
+}
+
+func TestEventCloneOfAPartialEvent(t *testing.T) {
+	var e Event
+	if err := e.Parse([]byte("CEF:3|Vendor|Prod"), MaxExtensions); !errors.Is(err, ErrIncompleteHeader) {
+		t.Fatalf("Parse = %v, want ErrIncompleteHeader", err)
+	}
+	c := e.Clone()
+	if got, want := fields(c), fields(&e); got != want {
+		t.Errorf("Clone of a partial event = %s, want %s", got, want)
+	}
+	if c.DeviceEventClassID() != (Span{}) {
+		t.Errorf("Clone: DeviceEventClassID() = %v, want the zero Span", c.DeviceEventClassID())
+	}
+}
+
+func TestEventCloneAllocs(t *testing.T) {
+	withPairs, header, pipes := parsed(t, testEvent), parsed(t, testHeaderOnly), parsed(t, "CEF:0|||||||")
+	var zero, version Event
+	if err := version.Parse([]byte("CEF:7|"), MaxExtensions); !errors.Is(err, ErrIncompleteHeader) {
+		t.Fatalf("Parse(CEF:7|) = %v, want ErrIncompleteHeader", err)
+	}
+	var kept *Event
+	assertAllocs(t, 3, func() { kept = withPairs.Clone() })
+	assertAllocs(t, 2, func() { kept = header.Clone() })
+	assertAllocs(t, 2, func() { kept = pipes.Clone() })
+	assertAllocs(t, 1, func() { kept = version.Clone() })
+	assertAllocs(t, 1, func() { kept = zero.Clone() })
+	_ = kept
+	var dst Event
+	assertAllocs(t, 0, func() { withPairs.CloneTo(&dst) })
+}
+
+func TestEventCloneToSizesThePairsToTheCopy(t *testing.T) {
+	var src, dst, fresh Event
+	if err := src.Parse(pairsLine(17), 17); err != nil {
+		t.Fatalf("Parse(pairsLine(17), 17) = %v, want nil", err)
+	}
+	if err := dst.Parse(pairsLine(16), 16); err != nil {
+		t.Fatalf("Parse(pairsLine(16), 16) = %v, want nil", err)
+	}
+	if got := cap(src.Clone().pairs); got != 17 {
+		t.Errorf("pair storage of a Clone of 17 pairs = %d pairs, want 17", got)
+	}
+	if got := cap(src.CloneTo(&fresh).pairs); got != 17 {
+		t.Errorf("pair storage of a fresh Event after CloneTo of 17 pairs = %d pairs, want 17", got)
+	}
+	if got := cap(src.CloneTo(&dst).pairs); got != 17 {
+		t.Errorf("pair storage of 16 pairs after CloneTo of 17 = %d pairs, want 17", got)
+	}
+	first := &dst.pairs[0]
+	src.CloneTo(&dst)
+	if cap(dst.pairs) != 17 || &dst.pairs[0] != first {
+		t.Errorf("CloneTo into storage of 17 pairs = %d pairs, moved %t, want the 17 kept", cap(dst.pairs),
+			&dst.pairs[0] != first)
+	}
+}
+
+func TestEventAppendTextRoundTrips(t *testing.T) {
+	var e, back Event
+	for _, c := range corpusLines(t) {
+		if err := e.Parse(c.line, MaxExtensions); err != nil && !e.HeaderComplete() {
+			continue
+		}
+		text, err := e.AppendText(nil)
+		if err != nil {
+			t.Errorf("%s: AppendText = %v, want nil", c.name, err)
+			continue
+		}
+		if err := back.UnmarshalText(text); err != nil || fields(&back) != fields(&e) {
+			t.Errorf("%s: UnmarshalText(%q) = %v, %s, want %s", c.name, text, err, fields(&back), fields(&e))
+		}
+	}
+}
+
+func TestEventAppendTextIsCanonical(t *testing.T) {
+	e := parsed(t, "CEF:   7|V|P|1|C|N|5|   a=1  b=2   \r\n")
+	text, err := e.AppendText([]byte("> "))
+	if want := "> CEF:7|V|P|1|C|N|5|a=1  b=2"; err != nil || string(text) != want {
+		t.Errorf("AppendText = %q, %v, want %q", text, err, want)
+	}
+	marshaled, err := e.MarshalText()
+	if want := "CEF:7|V|P|1|C|N|5|a=1  b=2"; err != nil || string(marshaled) != want {
+		t.Errorf("MarshalText = %q, %v, want %q", marshaled, err, want)
+	}
+}
+
+func TestEventAppendTextTakesMaxExtensionsPairs(t *testing.T) {
+	line := pairsLine(256)
+	e := parsed(t, string(line))
+	if text, err := e.AppendText(nil); err != nil || !bytes.Equal(text, line) {
+		t.Errorf("AppendText of 256 pairs = %q, %v, want the input", text, err)
+	}
+}
+
+func TestEventAppendTextFails(t *testing.T) {
+	partial := new(Event)
+	if err := partial.Parse([]byte("CEF:0|V|P\xff"), MaxExtensions); !errors.Is(err, ErrIncompleteHeader) {
+		t.Fatalf("Parse of a partial header = %v, want ErrIncompleteHeader", err)
+	}
+	overflow := new(Event)
+	if err := overflow.Parse(pairsLine(257), 300); err != nil {
+		t.Fatalf("Parse(pairsLine(257), 300) = %v, want nil", err)
+	}
+	badUTF8 := parsed(t, testHeaderOnly+"msg=\xff")
+	cut := new(Event)
+	if err := cut.Parse([]byte(testHeaderOnly+"a=1  b=2"), 1); !errors.Is(err, ErrExtOverflow) {
+		t.Fatalf("Parse(a=1  b=2, 1) = %v, want ErrExtOverflow", err)
+	}
+	overflowUTF8 := new(Event)
+	if err := overflowUTF8.Parse(append(pairsLine(257), " x=\xff"...), 300); err != nil {
+		t.Fatalf("Parse(pairsLine(257) x=\\xff, 300) = %v, want nil", err)
+	}
+	reset := parsed(t, testEvent)
+	reset.Reset()
+	for _, tc := range []struct {
+		name string
+		e    *Event
+		err  error
+	}{
+		{"zero", new(Event), ErrIncompleteHeader},
+		{"reset", reset, ErrIncompleteHeader},
+		{"partial header, not UTF-8", partial, ErrIncompleteHeader},
+		{"257 pairs", overflow, ErrExtOverflow},
+		{"a limit cut before two spaces", cut, ErrExtOverflow},
+		{"258 pairs, not UTF-8", overflowUTF8, ErrExtOverflow},
+		{"not UTF-8", badUTF8, ErrInvalidUTF8},
+	} {
+		dst := []byte("keep")
+		got, err := tc.e.AppendText(dst)
+		if !errors.Is(err, tc.err) || string(got) != "keep" {
+			t.Errorf("%s: AppendText = %q, %v, want %q, %v", tc.name, got, err, "keep", tc.err)
+		}
+		if text, err := tc.e.MarshalText(); text != nil || !errors.Is(err, tc.err) {
+			t.Errorf("%s: MarshalText = %q, %v, want nil, %v", tc.name, text, err, tc.err)
+		}
+	}
+}
+
+func TestEventAppendTextAllocs(t *testing.T) {
+	e := parsed(t, testEvent)
+	dst := make([]byte, 0, 256)
+	var text []byte
+	var err error
+	assertAllocs(t, 0, func() { text, err = e.AppendText(dst) })
+	assertAllocs(t, 1, func() { text, err = e.MarshalText() })
+	if err != nil || string(text) != testEvent {
+		t.Errorf("MarshalText = %q, %v, want the input", text, err)
+	}
+	var zero Event
+	assertAllocs(t, 0, func() { text, err = zero.MarshalText() })
+	if text != nil || !errors.Is(err, ErrIncompleteHeader) {
+		t.Errorf("MarshalText of the zero Event = %q, %v, want nil, ErrIncompleteHeader", text, err)
+	}
+	// 81 bytes is one past an allocation size class.
+	sized := "CEF:0|V|P|1|C|N|5|msg=" + strings.Repeat("x", 59)
+	e = parsed(t, sized)
+	assertAllocs(t, 1, func() { text, err = e.MarshalText() })
+	if err != nil || string(text) != sized {
+		t.Errorf("MarshalText = %q, %v, want the %d-byte input", text, err, len(sized))
+	}
+}
+
+func TestEventAppendTextAllocsAtEachVersionLength(t *testing.T) {
+	for _, v := range []int{0, 9, 10, 99, 100, 999, 1000, 9999} {
+		// 81 bytes is one past an allocation size class.
+		head := "CEF:" + strconv.Itoa(v) + "|V|P|1|C|N|5|msg="
+		line := head + strings.Repeat("x", 81-len(head))
+		e := parsed(t, line)
+		dst := make([]byte, 0, len(line))
+		var text []byte
+		var err error
+		assertAllocs(t, 0, func() { text, err = e.AppendText(dst) })
+		if err != nil || string(text) != line {
+			t.Errorf("AppendText into %d bytes = %q, %v, want the input", cap(dst), text, err)
+		}
+		assertAllocs(t, 1, func() { text, err = e.MarshalText() })
+		if err != nil || string(text) != line {
+			t.Errorf("MarshalText = %q, %v, want the %d-byte input", text, err, len(line))
+		}
+	}
+}
+
+func TestEventUnmarshalTextCopiesTheText(t *testing.T) {
+	text := []byte(testEvent)
+	var e Event
+	if err := e.UnmarshalText(text); err != nil {
+		t.Fatalf("UnmarshalText = %v, want nil", err)
+	}
+	want := fields(&e)
+	for i := range text {
+		text[i] = 'X'
+	}
+	if got := fields(&e); got != want {
+		t.Errorf("after the text changed = %s, want %s", got, want)
+	}
+}
+
+func TestEventUnmarshalTextKeepsThePartialEvent(t *testing.T) {
+	var e Event
+	err := e.UnmarshalText([]byte("CEF:0|Vendor|Pro"))
+	if pe := asParseError(err); pe == nil || !errors.Is(err, ErrIncompleteHeader) || pe.Position != 16 {
+		t.Fatalf("UnmarshalText of a partial header = %v, want ErrIncompleteHeader at byte 16", err)
+	}
+	if e.Text(e.DeviceVendor()) != "Vendor" || e.Text(e.DeviceProduct()) != "Pro" || e.HeaderComplete() {
+		t.Errorf("partial event = %s, want Vendor and Pro kept", fields(&e))
+	}
+	if err := e.UnmarshalText(nil); !errors.Is(err, ErrEmpty) {
+		t.Errorf("UnmarshalText(nil) = %v, want ErrEmpty", err)
+	}
+}
+
+func TestEventUnmarshalTextTakesMaxExtensionsPairs(t *testing.T) {
+	for _, tc := range []struct {
+		pairs int
+		err   error
+	}{{256, nil}, {257, ErrExtOverflow}} {
+		line := pairsLine(tc.pairs)
+		var e Event
+		err := e.UnmarshalText(line)
+		diff := eventDiff(&e, err, refParse(line, 256))
+		if diff != "" || !errors.Is(err, tc.err) || e.ExtCount() != 256 {
+			t.Errorf("UnmarshalText(pairsLine(%d)) = %v, %s, %d pairs, want %v and 256 pairs",
+				tc.pairs, err, diff, e.ExtCount(), tc.err)
+		}
+	}
+}
+
+func TestEventUnmarshalTextAllocs(t *testing.T) {
+	text := []byte(testEvent)
+	var e Event
+	var err error
+	assertAllocs(t, 0, func() { err = e.UnmarshalText(text) })
+	if err != nil {
+		t.Errorf("UnmarshalText = %v, want nil", err)
+	}
+	bad := []byte("CEF:x")
+	assertAllocs(t, 1, func() { err = e.UnmarshalText(bad) })
+	if !errors.Is(err, ErrVersion) {
+		t.Errorf("UnmarshalText(%q) = %v, want ErrVersion", bad, err)
+	}
+	held := make([]byte, 100<<10)
+	assertAllocs(t, 1, func() {
+		e.owned = held
+		err = e.UnmarshalText(text)
+	})
+	if err != nil || cap(e.owned) != len(text) {
+		t.Errorf("UnmarshalText after 100 KiB = %v with %d owned bytes, want nil with %d", err, cap(e.owned), len(text))
+	}
+}
+
+// textOf returns a valid text of n bytes, n at least 40: testHeaderOnly and one pair.
+func textOf(n int) []byte {
+	return []byte(testHeaderOnly + "msg=" + strings.Repeat("x", n-len(testHeaderOnly)-len("msg=")))
+}
+
+func TestEventUnmarshalTextReusesOwnedBytes(t *testing.T) {
+	for _, tc := range []struct {
+		held, next, want int
+	}{
+		{64, 64, 64},
+		{65536, 64, 65536},
+		{65537, 64, 64},
+		{65537, 65536, 65536},
+		{100 << 10, 65537, 100 << 10},
+	} {
+		var e Event
+		if err := e.UnmarshalText(textOf(tc.held)); err != nil {
+			t.Fatalf("UnmarshalText of %d bytes = %v, want nil", tc.held, err)
+		}
+		if err := e.UnmarshalText(textOf(tc.next)); err != nil {
+			t.Fatalf("UnmarshalText of %d bytes = %v, want nil", tc.next, err)
+		}
+		if got := cap(e.owned); got != tc.want {
+			t.Errorf("owned bytes after texts of %d and %d bytes = %d, want %d", tc.held, tc.next, got, tc.want)
+		}
+	}
+}
+
+func TestEventResetAnswersAsTheZeroEvent(t *testing.T) {
+	e := parsed(t, string(pairsLine(40)))
+	storage := cap(e.pairs)
+	e.Reset()
+	var zero Event
+	if got, want := fields(e), fields(&zero); got != want {
+		t.Errorf("after Reset = %s, want %s", got, want)
+	}
+	if b := e.Bytes(Span{Start: 0, End: 1}); b == nil || len(b) != 0 || cap(b) != 0 {
+		t.Errorf("Bytes([0:1]) after Reset = %q cap %d (nil %t), want an empty view", b, cap(b), b == nil)
+	}
+	if got := cap(e.pairs); got != storage {
+		t.Errorf("pair storage after Reset = %d, want %d", got, storage)
+	}
+	assertAllocs(t, 0, e.Reset)
+}
+
+func TestEventStringSummarizes(t *testing.T) {
+	long := strings.Repeat("v", 31)
+	for _, tc := range []struct {
+		line string
+		want string
+	}{
+		{testHeaderOnly, "Event{ver=0 vendor=Vendor product=Product devver=1.0 classid=100 name=Name sev=5 exts=0}"},
+		{"CEF:1|V|P|1|C|N|5|a=1 b=" + long + " c=3 d=4",
+			"Event{ver=1 vendor=V product=P devver=1 classid=C name=N sev=5 exts=4[a=1 b=" + long[:30] +
+				"... c=3 ...]}"},
+		{"CEF:1|V|P|1|C|N|5|a=1 b=" + long[:30] + " c=3",
+			"Event{ver=1 vendor=V product=P devver=1 classid=C name=N sev=5 exts=3[a=1 b=" + long[:30] +
+				" c=3]}"},
+		{"CEF:1|V\rX|P\nY|1|C|N\r\n|5|a=x\r\ny b=\n",
+			"Event{ver=1 vendor=V X product=P Y devver=1 classid=C name=N   sev=5 exts=2[a=x  y b=]}"},
+		{"CEF:1|V|P|1|C|N|5|a=\rb",
+			"Event{ver=1 vendor=V product=P devver=1 classid=C name=N sev=5 exts=1[a= b]}"},
+		{"CEF:1|V|P|1|C|N|5|a=\x0cb",
+			"Event{ver=1 vendor=V product=P devver=1 classid=C name=N sev=5 exts=1[a=\x0cb]}"},
+	} {
+		if got := parsed(t, tc.line).String(); got != tc.want {
+			t.Errorf("String() of %q = %q, want %q", tc.line, got, tc.want)
+		}
+	}
+	var zero Event
+	if got, want := zero.String(), "Event{ver=0 vendor= product= devver= classid= name= sev= exts=0}"; got != want {
+		t.Errorf("String() of the zero Event = %q, want %q", got, want)
+	}
+	e := parsed(t, string(pairsLine(10)))
+	assertAllocs(t, 1, func() { _ = e.String() })
+	lines := parsed(t, "CEF:1|V\rX|P\nY|1|C|N|5|a=x\r\ny b=2")
+	assertAllocs(t, 1, func() { _ = lines.String() })
+}
+
+// TestEventStringWritesEachLineBreakAsASpace puts one CR or LF at every position of a
+// header field, the last header field and a value of 1 to 20 bytes.
+func TestEventStringWritesEachLineBreakAsASpace(t *testing.T) {
+	for n := 1; n <= 20; n++ {
+		for i := range n {
+			field := []byte(strings.Repeat("1", n))
+			field[i] = "\r\n"[i%2]
+			for _, line := range []string{
+				"CEF:0|" + string(field), "CEF:0|" + string(field) + "|P|1|C|N|5|",
+				"CEF:0|V|P|1|C|N|" + string(field) + "|", testHeaderOnly + "a=" + string(field) + " b=2",
+			} {
+				var e Event
+				want := refParse([]byte(line), MaxExtensions)
+				if diff := eventDiff(&e, e.Parse([]byte(line), MaxExtensions), want); diff != "" {
+					t.Fatalf("Parse(%q): %s", line, diff)
+				}
+				if got, summary := e.String(), refSummary([]byte(line), want); got != summary {
+					t.Errorf("String() of %q = %q, want %q", line, got, summary)
+				}
 			}
-			got, err := e.MarshalText()
-			if err != nil {
-				t.Fatalf("marshal: %v", err)
+		}
+	}
+}
+
+// TestEventStringAllocsOnceAcrossLengths reads summaries of 64 consecutive lengths, so
+// that some of them end just past an allocation size class.
+func TestEventStringAllocsOnceAcrossLengths(t *testing.T) {
+	key, value := strings.Repeat("k", 30), strings.Repeat("v", 40)
+	pairs := strings.Repeat(" "+key+"="+value, 3) + strings.Repeat(" a=1", 97)
+	for n := range 64 {
+		e := parsed(t, "CEF:9999|"+strings.Repeat("x", n)+"|P|1|C|N|5|"+pairs[1:])
+		var summary string
+		assertAllocs(t, 1, func() { summary = e.String() })
+		if !strings.Contains(summary, " exts=100[") {
+			t.Fatalf("String() = %q, want 100 pairs", summary)
+		}
+	}
+}
+
+func FuzzEventAppendText(f *testing.F) {
+	f.Add([]byte(testEvent), 3)
+	f.Add([]byte(testHeaderOnly+"a=\xff"), 256)
+	f.Add(pairsLine(257), 300)
+	f.Add([]byte("CEF:0|||||||0=  0="), 1)
+	f.Fuzz(func(t *testing.T, input []byte, limit int) {
+		limit %= 300
+		var e Event
+		want := refParse(input, limit)
+		if diff := eventDiff(&e, e.Parse(input, limit), want); diff != "" {
+			t.Fatalf("Parse(%q, %d): %s", input, limit, diff)
+		}
+		checkUnmarshalInput(t, input)
+		text, err := e.AppendText(nil)
+		if class := refTextFault(input, want); class != nil {
+			marshaled, marshalErr := e.MarshalText()
+			if !errors.Is(err, class) || text != nil || !errors.Is(marshalErr, class) || marshaled != nil {
+				t.Fatalf("AppendText, MarshalText of %q = %q, %v and %q, %v, want nil, %v from both",
+					input, text, err, marshaled, marshalErr, class)
 			}
-			e2, err := m.Parse(got)
-			if err != nil {
-				t.Fatalf("re-parse: %v", err)
+			return
+		}
+		if wantText := refText(input, want); err != nil || string(text) != wantText {
+			t.Fatalf("AppendText of %q = %q, %v, want %q", input, text, err, wantText)
+		}
+		checkReadBack(t, &e, text)
+	})
+}
+
+// checkUnmarshalInput fails t unless UnmarshalText of input gives the reference parse
+// of input under MaxExtensions, over bytes equal to input.
+func checkUnmarshalInput(t *testing.T, input []byte) {
+	t.Helper()
+	var u Event
+	diff := eventDiff(&u, u.UnmarshalText(input), refParse(input, MaxExtensions))
+	if diff != "" || !bytes.Equal(u.raw, input) {
+		t.Fatalf("UnmarshalText(%q) = %s, bytes %q, want the reference parse of a copy", input, diff, u.raw)
+	}
+}
+
+// checkReadBack fails t unless MarshalText gives text, the AppendText of e, and
+// UnmarshalText reads text back to an Event equal to e that the reference agrees with.
+func checkReadBack(t *testing.T, e *Event, text []byte) {
+	t.Helper()
+	if marshaled, err := e.MarshalText(); err != nil || !bytes.Equal(text, marshaled) {
+		t.Fatalf("MarshalText = %q, %v, want AppendText's %q", marshaled, err, text)
+	}
+	var back Event
+	err := back.UnmarshalText(text)
+	if diff := eventDiff(&back, err, refParse(text, 256)); diff != "" || fields(&back) != fields(e) {
+		t.Fatalf("UnmarshalText(%q) = %s, %s, want %s", text, diff, fields(&back), fields(e))
+	}
+}
+
+// refText returns the text of the header-complete reference event want of input: the
+// version in decimal, the six header fields and the bytes from the first key to the
+// last value.
+func refText(input []byte, want *refEvent) string {
+	text := "CEF:" + strconv.Itoa(want.version) + "|" + string(input[want.header[0].start:want.header[5].end]) + "|"
+	if n := len(want.pairs); n > 0 {
+		text += string(input[want.pairs[0].key.start:want.pairs[n-1].value.end])
+	}
+	return text
+}
+
+// refTextFault returns what the text methods give for the reference event want of
+// input: ErrIncompleteHeader unless headerComplete, then ErrExtOverflow above 256 pairs
+// or for a last value ending in a space, CR or LF, then ErrInvalidUTF8; nil otherwise.
+func refTextFault(input []byte, want *refEvent) error {
+	switch {
+	case !want.headerComplete:
+		return ErrIncompleteHeader
+	case len(want.pairs) > 256 || refTrailing(input, want):
+		return ErrExtOverflow
+	case !utf8.Valid(input[want.header[0].start:refEnd(want)]):
+		return ErrInvalidUTF8
+	}
+	return nil
+}
+
+// refTrailing reports whether the last reference value of input ends in a space, a CR
+// or an LF.
+func refTrailing(input []byte, want *refEvent) bool {
+	if len(want.pairs) == 0 {
+		return false
+	}
+	last := want.pairs[len(want.pairs)-1].value
+	return last.end > last.start && strings.IndexByte(" \r\n", input[last.end-1]) >= 0
+}
+
+// refEnd returns the end of the bytes a header-complete reference event's spans cover.
+func refEnd(want *refEvent) int {
+	if n := len(want.pairs); n > 0 {
+		return want.pairs[n-1].value.end
+	}
+	return want.header[5].end
+}
+
+func FuzzEventClone(f *testing.F) {
+	f.Add([]byte(testEvent), []byte(testHeaderOnly+"k=v"))
+	f.Add([]byte("CEF:0|V|P"), []byte(""))
+	f.Fuzz(func(t *testing.T, input, other []byte) {
+		input = bytes.Clone(input)
+		var e, dst Event
+		if diff := eventDiff(&e, e.Parse(input, MaxExtensions), refParse(input, MaxExtensions)); diff != "" {
+			t.Fatalf("Parse(%q): %s", input, diff)
+		}
+		want := fields(&e)
+		c := e.Clone()
+		if diff := eventDiff(&dst, dst.Parse(other, MaxExtensions), refParse(other, MaxExtensions)); diff != "" {
+			t.Fatalf("Parse(%q): %s", other, diff)
+		}
+		kept := bytes.Clone(other)
+		e.CloneTo(&dst)
+		e.CloneTo(&e)
+		for i := range input {
+			input[i] = 'X'
+		}
+		for name, got := range map[string]*Event{"Clone": c, "CloneTo": &dst, "CloneTo(e)": &e} {
+			if fields(got) != want {
+				t.Fatalf("%s of %q = %s, want %s", name, input, fields(got), want)
 			}
-			if e2.Text(e2.Vendor) != e.Text(e.Vendor) {
-				t.Errorf("vendor: got %q, want %q", e2.Text(e2.Vendor), e.Text(e.Vendor))
+		}
+		e.CloneTo(c)
+		clear(e.owned)
+		if got := fields(c); got != want || !bytes.Equal(other, kept) {
+			t.Fatalf("CloneTo(clone) = %s, dst's input %q, want %s and %q unchanged", got, other, want, kept)
+		}
+		e.Reset()
+		var zero Event
+		if fields(&e) != fields(&zero) {
+			t.Fatalf("after Reset = %s, want the zero event", fields(&e))
+		}
+	})
+}
+
+func FuzzEventExt(f *testing.F) {
+	f.Add([]byte(testEvent), []byte("src"), -1)
+	f.Add([]byte(testHeaderOnly+"abcd=1 abcde=2 abcd=3"), []byte("abcd"), 3)
+	f.Add([]byte(testHeaderOnly+"k=v"), []byte("k"), math.MinInt)
+	f.Fuzz(func(t *testing.T, input, key []byte, at int) {
+		var e Event
+		want := refParse(input, MaxExtensions)
+		if diff := eventDiff(&e, e.Parse(input, MaxExtensions), want); diff != "" {
+			t.Fatalf("Parse(%q): %s", input, diff)
+		}
+		if diff := pairsDiff(&e, want, at); diff != "" {
+			t.Fatalf("on %q: %s", input, diff)
+		}
+		value, found := refLookup(input, want, key)
+		if got, ok := e.Ext(key); ok != found || (found && !spanIs(got, value)) || (!found && got != Span{}) {
+			t.Fatalf("Ext(%q) on %q = %v, %t, want %v, %t", key, input, got, ok, value, found)
+		}
+		bytesSpan, bytesOK := e.Ext(key)
+		if got, ok := e.ExtString(string(key)); got != bytesSpan || ok != bytesOK {
+			t.Fatalf("ExtString(%q) on %q = %v, %t, want Ext's %v, %t", key, input, got, ok, bytesSpan, bytesOK)
+		}
+	})
+}
+
+// pairsDiff compares the pairs All yields, in input order, and the answer of ExtAt(at)
+// with the reference pairs of want, and returns the first difference, or "" for none.
+func pairsDiff(e *Event, want *refEvent, at int) string {
+	if p, ok := e.ExtAt(at); ok != (at >= 0 && at < len(want.pairs)) || (!ok && p != ExtPair{}) {
+		return fmt.Sprintf("ExtAt(%d) of %d pairs = %v, %t, want true inside the pairs only",
+			at, len(want.pairs), p, ok)
+	}
+	i := 0
+	for k, v := range e.All() {
+		if i == len(want.pairs) || !spanIs(k, want.pairs[i].key) || !spanIs(v, want.pairs[i].value) {
+			return fmt.Sprintf("All() pair %d = %v=%v, want the reference pair %d of %d", i, k, v, i, len(want.pairs))
+		}
+		i++
+	}
+	if i != len(want.pairs) {
+		return fmt.Sprintf("All() = %d pairs, want %d", i, len(want.pairs))
+	}
+	return ""
+}
+
+// refLookup returns the value of the last reference pair of input whose key is key.
+func refLookup(input []byte, want *refEvent, key []byte) (value refSpan, found bool) {
+	for _, p := range want.pairs {
+		if bytes.Equal(input[p.key.start:p.key.end], key) {
+			value, found = p.value, true
+		}
+	}
+	return value, found
+}
+
+func FuzzEventBytes(f *testing.F) {
+	f.Add([]byte(testEvent), uint32(0), uint32(4))
+	f.Add([]byte(testHeaderOnly), uint32(1<<31), uint32(1<<31+1))
+	f.Fuzz(func(t *testing.T, input []byte, start, end uint32) {
+		var e Event
+		if diff := eventDiff(&e, e.Parse(input, MaxExtensions), refParse(input, MaxExtensions)); diff != "" {
+			t.Fatalf("Parse(%q): %s", input, diff)
+		}
+		s := Span{Start: start, End: end}
+		got := e.Bytes(s)
+		want, inRange := refBytes(input, uint64(start), uint64(end))
+		if (!inRange && got == nil) || !bytes.Equal(got, want) || cap(got) != len(want) {
+			t.Fatalf("Bytes(%v) on %d bytes = %q cap %d, want %q capped", s, len(input), got, cap(got), want)
+		}
+		if text := e.Text(s); text != string(want) {
+			t.Fatalf("Text(%v) = %q, want %q", s, text, want)
+		}
+		if got, wantApp := e.AppendBytes([]byte("x"), s), append([]byte("x"), want...); !bytes.Equal(got, wantApp) {
+			t.Fatalf("AppendBytes(x, %v) = %q, want %q", s, got, wantApp)
+		}
+	})
+}
+
+// refBytes returns input[start:end], computed in uint64, and whether the range lies in
+// input.
+func refBytes(input []byte, start, end uint64) ([]byte, bool) {
+	if start > end || end > uint64(len(input)) {
+		return nil, false
+	}
+	return input[start:end], true
+}
+
+func FuzzEventString(f *testing.F) {
+	f.Add([]byte(testEvent))
+	f.Fuzz(func(t *testing.T, input []byte) {
+		var e Event
+		want := refParse(input, MaxExtensions)
+		if diff := eventDiff(&e, e.Parse(input, MaxExtensions), want); diff != "" {
+			t.Fatalf("Parse(%q): %s", input, diff)
+		}
+		got := e.String()
+		if strings.IndexByte(got, '\r') >= 0 || strings.IndexByte(got, '\n') >= 0 {
+			t.Fatalf("String() of %q = %q, want no CR or LF", input, got)
+		}
+		if summary := refSummary(input, want); got != summary {
+			t.Fatalf("String() of %q = %q, want %q", input, got, summary)
+		}
+	})
+}
+
+// refSummary returns the summary of the reference event want of input, built with
+// strconv: the version, the header fields, the pair count and the first three pairs,
+// each value cut at 30 bytes, CR and LF replaced by spaces.
+func refSummary(input []byte, want *refEvent) string {
+	text := func(s refSpan) string {
+		return strings.ReplaceAll(strings.ReplaceAll(string(input[s.start:s.end]), "\r", " "), "\n", " ")
+	}
+	var b strings.Builder
+	b.WriteString("Event{ver=" + strconv.Itoa(want.version))
+	for i, label := range []string{"vendor", "product", "devver", "classid", "name", "sev"} {
+		b.WriteString(" " + label + "=" + text(want.header[i]))
+	}
+	b.WriteString(" exts=" + strconv.Itoa(len(want.pairs)))
+	if len(want.pairs) == 0 {
+		return b.String() + "}"
+	}
+	shown := make([]string, 0, 3)
+	for _, p := range want.pairs[:min(3, len(want.pairs))] {
+		v := text(p.value)
+		if len(v) > 30 {
+			v = v[:30] + "..."
+		}
+		shown = append(shown, text(p.key)+"="+v)
+	}
+	if len(want.pairs) > 3 {
+		shown = append(shown, "...")
+	}
+	return b.String() + "[" + strings.Join(shown, " ") + "]}"
+}
+
+// refFields returns fields of the Event the reference event want of input describes.
+func refFields(input []byte, want *refEvent) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "v%d headerComplete=%t n=%d", want.version, want.headerComplete, len(want.pairs))
+	for _, s := range want.header {
+		fmt.Fprintf(&b, "|%q", input[s.start:s.end])
+	}
+	for _, p := range want.pairs {
+		fmt.Fprintf(&b, " %q=%q", input[p.key.start:p.key.end], input[p.value.start:p.value.end])
+	}
+	return b.String()
+}
+
+func FuzzSpan(f *testing.F) {
+	f.Add(uint32(0), uint32(4294967295))
+	f.Fuzz(func(t *testing.T, start, end uint32) {
+		s := Span{Start: start, End: end}
+		wantLen := uint32(0)
+		if end > start {
+			wantLen = end - start
+		}
+		if s.Len() != wantLen || s.IsEmpty() != (wantLen == 0) {
+			t.Fatalf("%v.Len(), IsEmpty() = %d, %t, want %d, %t", s, s.Len(), s.IsEmpty(), wantLen, wantLen == 0)
+		}
+		want := "[" + strconv.FormatUint(uint64(start), 10) + ":" + strconv.FormatUint(uint64(end), 10) + "]"
+		if got := s.String(); got != want {
+			t.Fatalf("String() = %q, want %q", got, want)
+		}
+		p := ExtPair{Key: s, Value: Span{Start: end, End: start}}
+		wantPair := want + "=[" + strconv.FormatUint(uint64(end), 10) + ":" +
+			strconv.FormatUint(uint64(start), 10) + "]"
+		if got := p.String(); got != wantPair {
+			t.Fatalf("ExtPair.String() = %q, want %q", got, wantPair)
+		}
+	})
+}
+
+func FuzzVersionString(f *testing.F) {
+	f.Add(9999)
+	f.Fuzz(func(t *testing.T, v int) {
+		if got, want := Version(v).String(), strconv.Itoa(v); got != want {
+			t.Fatalf("Version(%d).String() = %q, want %q", v, got, want)
+		}
+	})
+}
+
+func BenchmarkEventAccessors(b *testing.B) {
+	e := parsed(b, testEvent)
+	header := [...]string{e.Text(e.DeviceVendor()), e.Text(e.DeviceProduct()), e.Text(e.DeviceVersion()),
+		e.Text(e.DeviceEventClassID()), e.Text(e.Name()), e.Text(e.Severity())}
+	want := [...]string{"Security", "threatmanager", "1.0", "100", "worm successfully stopped", "10"}
+	if header != want {
+		b.Fatalf("header fields = %q, want %q", header, want)
+	}
+	if e.Version() != 0 || !e.HeaderComplete() || e.ExtCount() != 4 {
+		b.Fatalf("Version(), HeaderComplete(), ExtCount() = %d, %t, %d, want 0, true, 4", e.Version(),
+			e.HeaderComplete(), e.ExtCount())
+	}
+	b.ReportAllocs()
+	for b.Loop() {
+		_, _, _, _, _ = e.DeviceVendor(), e.DeviceProduct(), e.DeviceVersion(), e.DeviceEventClassID(), e.Name()
+		_, _, _, _ = e.Severity(), e.Version(), e.HeaderComplete(), e.ExtCount()
+	}
+}
+
+func BenchmarkEventExtAt(b *testing.B) {
+	line := pairsLine(58)
+	e, want := parsed(b, string(line)), refParse(line, MaxExtensions)
+	for i, w := range want.pairs {
+		if p, ok := e.ExtAt(i); !ok || !spanIs(p.Key, w.key) || !spanIs(p.Value, w.value) {
+			b.Fatalf("ExtAt(%d) = %v, %t, want [%d:%d]=[%d:%d]", i, p, ok,
+				w.key.start, w.key.end, w.value.start, w.value.end)
+		}
+	}
+	b.ReportAllocs()
+	for b.Loop() {
+		for i := range e.ExtCount() {
+			_, _ = e.ExtAt(i)
+		}
+	}
+}
+
+func BenchmarkEventAll(b *testing.B) {
+	line := pairsLine(58)
+	e, want := parsed(b, string(line)), refParse(line, MaxExtensions)
+	var got []string
+	for k, v := range e.All() {
+		got = append(got, fmt.Sprint(k, v))
+	}
+	wantPairs := make([]string, 0, len(want.pairs))
+	for _, w := range want.pairs {
+		wantPairs = append(wantPairs, fmt.Sprintf("[%d:%d] [%d:%d]", w.key.start, w.key.end,
+			w.value.start, w.value.end))
+	}
+	if strings.Join(got, " ") != strings.Join(wantPairs, " ") {
+		b.Fatalf("All() = %q, want %q", got, wantPairs)
+	}
+	b.ReportAllocs()
+	for b.Loop() {
+		for k := range e.All() {
+			_ = k
+		}
+	}
+}
+
+func BenchmarkEventExtString(b *testing.B) {
+	line := pairsLine(17)
+	e, ref := parsed(b, string(line)), refParse(line, MaxExtensions)
+	for _, key := range []string{"key0", "key8", "key16", "missing"} {
+		b.Run(key, func(b *testing.B) {
+			value, found := refLookup(line, ref, []byte(key))
+			s, ok := e.ExtString(key)
+			want := string(line[value.start:value.end])
+			if ok != found || found == (key == "missing") || e.Text(s) != want {
+				b.Fatalf("ExtString(%q) = %q, %t, want %q, %t", key, e.Bytes(s), ok, want, key != "missing")
 			}
-			if e2.ExtCount != e.ExtCount {
-				t.Errorf("ext count: got %d, want %d", e2.ExtCount, e.ExtCount)
+			b.ReportAllocs()
+			for b.Loop() {
+				_, _ = e.ExtString(key)
 			}
 		})
 	}
 }
 
-func TestMarshalTextCloned(t *testing.T) {
-	m := NewParser()
-	e, err := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|src=1.2.3.4 dst=2.2.2.2`))
-	if err != nil {
-		t.Fatal(err)
+func BenchmarkEventExt(b *testing.B) {
+	e := parsed(b, string(pairsLine(17)))
+	key := []byte("key8")
+	if s, ok := e.Ext(key); !ok || e.Text(s) != "10.1.2.3" {
+		b.Fatalf("Ext(key8) = %q, %t, want %q, true", e.Bytes(s), ok, "10.1.2.3")
 	}
-	c := e.Clone()
-	got, err := c.MarshalText()
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := `CEF:0|V|P|1|100|N|5|src=1.2.3.4 dst=2.2.2.2`
-	if string(got) != want {
-		t.Errorf("MarshalText after Clone:\n got: %s\nwant: %s", got, want)
+	b.ReportAllocs()
+	for b.Loop() {
+		_, _ = e.Ext(key)
 	}
 }
 
-func TestVersionDigitsAllBranches(t *testing.T) {
-	tests := []struct {
-		v    Version
-		want int
-	}{
-		{InvalidVersion, 1}, // negative clamps to "0"
-		{0, 1}, {9, 1},      // v < 10
-		{10, 2}, {99, 2}, // v < 100
-		{100, 3}, {999, 3}, // v < 1000
-		{1000, 4}, {9999, 4}, // 4 digits
-		{10000, 5}, {1000000, 7}, // 5+ digits must be counted exactly
+func BenchmarkEventBytes(b *testing.B) {
+	e := parsed(b, testEvent)
+	if got := e.Bytes(e.DeviceVendor()); string(got) != "Security" {
+		b.Fatalf("Bytes(DeviceVendor()) = %q, want %q", got, "Security")
 	}
-	for _, tt := range tests {
-		got := versionDigits(tt.v)
-		if got != tt.want {
-			t.Errorf("versionDigits(%d) = %d, want %d", tt.v, got, tt.want)
+	b.ReportAllocs()
+	for b.Loop() {
+		_ = e.Bytes(e.DeviceVendor())
+	}
+}
+
+func BenchmarkEventText(b *testing.B) {
+	e := parsed(b, testEvent)
+	if got := e.Text(e.DeviceVendor()); got != "Security" {
+		b.Fatalf("Text(DeviceVendor()) = %q, want %q", got, "Security")
+	}
+	out := heapCell[string](b)
+	b.ReportAllocs()
+	for b.Loop() {
+		*out = e.Text(e.DeviceVendor())
+	}
+}
+
+func BenchmarkEventAppendBytes(b *testing.B) {
+	e := parsed(b, testEvent)
+	dst := make([]byte, 0, 64)
+	if got := e.AppendBytes(dst, e.DeviceVendor()); string(got) != "Security" {
+		b.Fatalf("AppendBytes(dst, DeviceVendor()) = %q, want %q", got, "Security")
+	}
+	b.ReportAllocs()
+	for b.Loop() {
+		_ = e.AppendBytes(dst, e.DeviceVendor())
+	}
+}
+
+func BenchmarkEventClone(b *testing.B) {
+	for _, n := range []int{10, 58} {
+		e := parsed(b, string(pairsLine(n)))
+		b.Run(strconv.Itoa(n), func(b *testing.B) {
+			if got, want := fields(e.Clone()), fields(e); got != want {
+				b.Fatalf("fields of the Clone = %s, want %s", got, want)
+			}
+			out := heapCell[*Event](b)
+			b.ReportAllocs()
+			for b.Loop() {
+				*out = e.Clone()
+			}
+		})
+	}
+}
+
+func BenchmarkEventCloneTo(b *testing.B) {
+	for _, n := range []int{10, 58} {
+		e := parsed(b, string(pairsLine(n)))
+		b.Run(strconv.Itoa(n), func(b *testing.B) {
+			var dst Event
+			if got, want := fields(e.CloneTo(&dst)), fields(e); got != want {
+				b.Fatalf("fields of the CloneTo copy = %s, want %s", got, want)
+			}
+			b.ReportAllocs()
+			for b.Loop() {
+				e.CloneTo(&dst)
+			}
+		})
+	}
+}
+
+func BenchmarkEventAppendText(b *testing.B) {
+	e := parsed(b, testEvent)
+	dst := make([]byte, 0, 256)
+	if text, err := e.AppendText(dst); err != nil || string(text) != testEvent {
+		b.Fatalf("AppendText = %q, %v, want the input", text, err)
+	}
+	b.ReportAllocs()
+	for b.Loop() {
+		if _, err := e.AppendText(dst); err != nil {
+			b.Fatalf("AppendText = %v, want nil", err)
 		}
 	}
 }
 
-func TestAppendBytesInvalidSpan(t *testing.T) {
-	m := NewParser()
-	e, err := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|`))
-	if err != nil {
-		t.Fatal(err)
+func BenchmarkEventMarshalText(b *testing.B) {
+	e := parsed(b, testEvent)
+	if text, err := e.MarshalText(); err != nil || string(text) != testEvent {
+		b.Fatalf("MarshalText = %q, %v, want the input", text, err)
 	}
-
-	// Inverted span (Start > End) — must return dst unchanged.
-	dst := []byte("prefix")
-	got := e.AppendBytes(dst, Span{Start: 10, End: 5})
-	if string(got) != "prefix" {
-		t.Errorf("inverted span: got %q, want %q", got, "prefix")
-	}
-
-	// Out-of-bounds span — must return dst unchanged.
-	got = e.AppendBytes(dst, Span{Start: 0, End: 99999})
-	if string(got) != "prefix" {
-		t.Errorf("out-of-bounds span: got %q, want %q", got, "prefix")
-	}
-
-	// Nil raw — must return dst unchanged.
-	var empty Event
-	got = empty.AppendBytes(dst, Span{Start: 0, End: 5})
-	if string(got) != "prefix" {
-		t.Errorf("nil raw: got %q, want %q", got, "prefix")
-	}
-}
-
-func TestMarshalTextHighVersion(t *testing.T) {
-	m := NewParser()
-	e, err := m.Parse([]byte(`CEF:99|V|P|1|100|N|5|src=1.2.3.4`))
-	if err != nil {
-		t.Fatal(err)
-	}
-	got, merr := e.MarshalText()
-	if merr != nil {
-		t.Fatal(merr)
-	}
-	want := `CEF:99|V|P|1|100|N|5|src=1.2.3.4`
-	if string(got) != want {
-		t.Errorf("MarshalText(CEF:99):\n got: %s\nwant: %s", got, want)
-	}
-	e2, err := m.Parse(got)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if e2.Version != 99 {
-		t.Errorf("version after round-trip: got %d, want 99", e2.Version)
-	}
-}
-
-// Clone/CloneTo of a valid all-empty-header event keeps raw non-nil so
-// MarshalText/String still reproduce it.
-func TestCloneAllEmptyHeader(t *testing.T) {
-	m := NewParser()
-	e, err := m.Parse([]byte("CEF:0||||||"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	wantMarshal, err := e.MarshalText()
-	if err != nil {
-		t.Fatal(err)
-	}
-	wantString := e.String()
-
-	c := e.Clone()
-	if !c.Valid() {
-		t.Error("clone of valid event should be valid")
-	}
-	gotClone, err := c.MarshalText()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Equal(gotClone, wantMarshal) {
-		t.Errorf("Clone MarshalText = %q, want %q", gotClone, wantMarshal)
-	}
-	if got := c.String(); got != wantString {
-		t.Errorf("Clone String = %q, want %q", got, wantString)
-	}
-
-	var dst Event
-	e.CloneTo(&dst)
-	if !dst.Valid() {
-		t.Error("CloneTo of valid event should be valid")
-	}
-	gotDst, err := dst.MarshalText()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Equal(gotDst, wantMarshal) {
-		t.Errorf("CloneTo MarshalText = %q, want %q", gotDst, wantMarshal)
-	}
-}
-
-// A clone must hold no stale offset: empty header spans are reset to Span{}.
-func TestCloneNormalizesEmptySpans(t *testing.T) {
-	m := NewParser()
-	e, err := m.Parse([]byte("CEF:0|VendorNameHere|prod|dv|cls||"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	c := e.Clone()
-	for name, s := range map[string]Span{"Name": c.Name, "Severity": c.Severity} {
-		if s != (Span{}) {
-			t.Errorf("%s empty span not normalized: %v", name, s)
-		}
-		if int(s.End) > len(c.raw) {
-			t.Errorf("%s span %v out of clone buffer (len %d)", name, s, len(c.raw))
+	out := heapCell[[]byte](b)
+	b.ReportAllocs()
+	for b.Loop() {
+		var err error
+		if *out, err = e.MarshalText(); err != nil {
+			b.Fatalf("MarshalText = %v, want nil", err)
 		}
 	}
-	assertSpan(t, c, c.Vendor, "VendorNameHere")
-	assertSpan(t, c, c.ClassID, "cls")
 }
 
-// A best-effort event with an unparseable version must not marshal to "CEF:-1".
-func TestMarshalTextBestEffortInvalidVersion(t *testing.T) {
-	m := NewParser(WithBestEffort())
-	e, err := m.Parse([]byte("CEF:01|V|P|1|1|N|5|")) // leading zero -> InvalidVersion
-	if err == nil {
-		t.Fatal("expected a version error")
+func BenchmarkEventUnmarshalText(b *testing.B) {
+	text := []byte(testEvent)
+	var e Event
+	err := e.UnmarshalText(text)
+	if diff := eventDiff(&e, err, refParse(text, MaxExtensions)); diff != "" {
+		b.Fatalf("UnmarshalText(%q): %s", text, diff)
 	}
-	if e.Version != InvalidVersion {
-		t.Fatalf("Version = %d, want InvalidVersion", e.Version)
+	if got, want := fields(&e), refFields(text, refParse(text, MaxExtensions)); got != want {
+		b.Fatalf("fields after UnmarshalText = %s, want %s", got, want)
 	}
-	out, merr := e.MarshalText()
-	if merr != nil {
-		t.Fatal(merr)
+	b.ReportAllocs()
+	for b.Loop() {
+		if err := e.UnmarshalText(text); err != nil {
+			b.Fatalf("UnmarshalText = %v, want nil", err)
+		}
 	}
-	if bytes.Contains(out, []byte("CEF:-1")) {
-		t.Errorf("marshaled an invalid version token: %q", out)
+}
+
+func BenchmarkEventReset(b *testing.B) {
+	e := parsed(b, testEvent)
+	e.Reset()
+	var zero Event
+	if got, want := fields(e), fields(&zero); got != want {
+		b.Fatalf("fields after Reset = %s, want %s", got, want)
 	}
-	if _, rerr := NewParser().Parse(out); rerr != nil {
-		t.Errorf("re-parse of marshaled output %q failed: %v", out, rerr)
+	if got := e.Bytes(Span{Start: 0, End: 1}); got == nil || len(got) != 0 || cap(got) != 0 {
+		b.Fatalf("Bytes([0:1]) after Reset = %q cap %d (nil %t), want an empty view", got, cap(got), got == nil)
 	}
+	b.ReportAllocs()
+	for b.Loop() {
+		e.Reset()
+	}
+}
+
+func BenchmarkEventString(b *testing.B) {
+	e := parsed(b, testEvent)
+	if got, want := e.String(), refSummary([]byte(testEvent), refParse([]byte(testEvent), MaxExtensions)); got != want {
+		b.Fatalf("String() = %q, want %q", got, want)
+	}
+	out := heapCell[string](b)
+	b.ReportAllocs()
+	for b.Loop() {
+		*out = e.String()
+	}
+}
+
+func BenchmarkExtPairString(b *testing.B) {
+	p := ExtPair{Key: Span{Start: 100, End: 103}, Value: Span{Start: 104, End: 112}}
+	if got := p.String(); got != "[100:103]=[104:112]" {
+		b.Fatalf("String() = %q, want %q", got, "[100:103]=[104:112]")
+	}
+	out := heapCell[string](b)
+	b.ReportAllocs()
+	for b.Loop() {
+		*out = p.String()
+	}
+}
+
+func BenchmarkSpanString(b *testing.B) {
+	s := Span{Start: 100, End: 4000}
+	if got := s.String(); got != "[100:4000]" {
+		b.Fatalf("String() = %q, want %q", got, "[100:4000]")
+	}
+	out := heapCell[string](b)
+	b.ReportAllocs()
+	for b.Loop() {
+		*out = s.String()
+	}
+}
+
+func BenchmarkSpanLen(b *testing.B) {
+	s := Span{Start: 100, End: 4000}
+	if s.Len() != 3900 || s.IsEmpty() {
+		b.Fatalf("Len(), IsEmpty() = %d, %t, want 3900, false", s.Len(), s.IsEmpty())
+	}
+	b.ReportAllocs()
+	for b.Loop() {
+		_, _ = s.Len(), s.IsEmpty()
+	}
+}
+
+func BenchmarkVersionString(b *testing.B) {
+	for _, v := range []Version{1, 9999} {
+		b.Run(strconv.Itoa(int(v)), func(b *testing.B) {
+			if got, want := v.String(), strconv.Itoa(int(v)); got != want {
+				b.Fatalf("Version(%d).String() = %q, want %q", int(v), got, want)
+			}
+			out := heapCell[string](b)
+			b.ReportAllocs()
+			for b.Loop() {
+				*out = v.String()
+			}
+		})
+	}
+}
+
+func ExampleEvent_ExtString() {
+	var e Event
+	if err := e.Parse([]byte(testHeaderOnly+"dvchost=first src=10.0.0.1 dvchost=last"), MaxExtensions); err != nil {
+		fmt.Println(err)
+		return
+	}
+	host, ok := e.ExtString("dvchost")
+	fmt.Println(e.Text(host), ok)
+	// Output: last true
+}
+
+func ExampleEvent_All() {
+	var e Event
+	if err := e.Parse([]byte(testHeaderOnly+`src=10.0.0.1 msg=a\=b`), MaxExtensions); err != nil {
+		fmt.Println(err)
+		return
+	}
+	for key, value := range e.All() {
+		fmt.Printf("%s=%s\n", e.Bytes(key), UnescapeExtValue(e.Bytes(value), nil))
+	}
+	// Output:
+	// src=10.0.0.1
+	// msg=a=b
+}
+
+func ExampleEvent_CloneTo() {
+	packet := []byte(testHeaderOnly + "act=allow")
+	var e, kept Event
+	if err := e.Parse(packet, MaxExtensions); err != nil {
+		fmt.Println(err)
+		return
+	}
+	e.CloneTo(&kept)
+	copy(packet, "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
+	act, _ := kept.ExtString("act")
+	fmt.Println(kept.Text(kept.DeviceVendor()), kept.Text(act))
+	// Output: Vendor allow
+}
+
+func ExampleEvent_AppendText() {
+	line := []byte("CEF:  0|Vendor|Product|1.0|100|Name|5|  src=10.0.0.1   \r\n")
+	var e Event
+	if err := e.Parse(line, MaxExtensions); err != nil {
+		fmt.Println(err)
+		return
+	}
+	text, err := e.AppendText(nil)
+	fmt.Printf("%s %v\n", text, err)
+	// Output: CEF:0|Vendor|Product|1.0|100|Name|5|src=10.0.0.1 <nil>
 }

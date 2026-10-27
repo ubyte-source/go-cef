@@ -1,76 +1,28 @@
 package cef
 
 import (
-	"bytes"
 	"encoding/binary"
 	"iter"
 	"slices"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
-// MaxExtensions is the hard cap on extension key-value pairs per event.
-const MaxExtensions = 64
-
-// Version is the CEF format version parsed from the "CEF:N" prefix.
+// Version is a CEF version: 1 to 4 decimal digits without a leading zero, 0 to 9999.
 type Version int
 
-// InvalidVersion marks a version that could not be parsed.
-const InvalidVersion Version = -1
+// String returns v in decimal; no allocation for 0 to 99.
+func (v Version) String() string { return strconv.Itoa(int(v)) }
 
-// String returns the decimal representation.
-func (v Version) String() string {
-	switch v {
-	case 0:
-		return "0"
-	case 1:
-		return "1"
-	}
-	return strconv.Itoa(int(v))
-}
-
-// Parser is a reusable CEF parser. Not safe for concurrent use.
-// The *Event returned by Parse is valid until the next Parse call.
-type Parser struct {
-	msg           Event
-	bestEffort    bool
-	maxExtensions int
-}
-
-// ParserOption configures a Parser.
-type ParserOption func(*Parser)
-
-// NewParser creates a new CEF parser.
-func NewParser(opts ...ParserOption) *Parser {
-	p := &Parser{maxExtensions: MaxExtensions}
-	for _, opt := range opts {
-		opt(p)
-	}
-	return p
-}
-
-// WithBestEffort enables best-effort mode: partial results are returned
-// alongside errors.
-func WithBestEffort() ParserOption {
-	return func(p *Parser) { p.bestEffort = true }
-}
-
-// WithMaxExtensions caps the number of extensions parsed.
-// n must be in [1, MaxExtensions]; panics otherwise.
-func WithMaxExtensions(n int) ParserOption {
-	if n < 1 || n > MaxExtensions {
-		panic("cef: WithMaxExtensions: n out of range [1, " + strconv.Itoa(MaxExtensions) + "]")
-	}
-	return func(p *Parser) { p.maxExtensions = n }
-}
-
-// Span identifies a substring in the original buffer: [Start, End).
+// Span is the byte range [Start, End) of an event's bytes; an Event method reads a Span
+// that does not lie within those bytes as empty.
 type Span struct {
 	Start uint32
 	End   uint32
 }
 
-// Len returns the length, or 0 if inverted.
+// Len returns End - Start, or 0 when s is inverted.
 func (s Span) Len() uint32 {
 	if s.End < s.Start {
 		return 0
@@ -78,434 +30,472 @@ func (s Span) Len() uint32 {
 	return s.End - s.Start
 }
 
-// IsEmpty reports whether the span has no content.
+// IsEmpty reports whether s covers no byte, an inverted s included.
 func (s Span) IsEmpty() bool { return s.Start >= s.End }
 
-// String returns a debug representation "[Start:End]".
+// String returns s as "[Start:End]"; one allocation.
 func (s Span) String() string {
-	var buf [24]byte
-	b := strconv.AppendUint(buf[:0], uint64(s.Start), 10)
-	b = append(b, ':')
-	b = strconv.AppendUint(b, uint64(s.End), 10)
-	return "[" + string(b) + "]"
+	var buf [spanTextLen]byte
+	return string(s.appendText(buf[:0]))
 }
 
-// ExtPair is a key-value pair in the extension section.
+// spanTextLen is the length of the longest text of a Span.
+const spanTextLen = len("[4294967295:4294967295]")
+
+// appendText appends the text String returns to dst.
+func (s Span) appendText(dst []byte) []byte {
+	dst = append(dst, '[')
+	dst = strconv.AppendUint(dst, uint64(s.Start), decimal)
+	dst = append(dst, ':')
+	dst = strconv.AppendUint(dst, uint64(s.End), decimal)
+	return append(dst, ']')
+}
+
+// ExtPair is one extension pair: the key span and the raw value span.
 type ExtPair struct {
 	Key   Span
 	Value Span
 }
 
-// String returns a debug representation.
-func (p ExtPair) String() string { return p.Key.String() + "=" + p.Value.String() }
+// String returns the two spans as "[Start:End]=[Start:End]"; one allocation.
+func (p ExtPair) String() string {
+	var buf [2*spanTextLen + 1]byte
+	b := append(p.Key.appendText(buf[:0]), '=')
+	return string(p.Value.appendText(b))
+}
 
-// Event is the result of parsing a CEF message. Fields are Span offsets
-// into the input buffer; copying by value shares the backing slice.
+// pair is one extension pair of an Event: the key [key, eq), the value [eq+1, end) and
+// pack, the first wordLen key bytes as keyPack returns them.
+type pair struct {
+	key  uint32
+	eq   uint32
+	end  uint32
+	pack uint32
+}
+
+func (p *pair) keySpan() Span { return Span{Start: p.key, End: p.eq} }
+
+func (p *pair) valueSpan() Span { return Span{Start: p.eq + 1, End: p.end} }
+
+// Indexes of the header fields in Event.header, in input order.
+const (
+	fieldDeviceVendor = iota
+	fieldDeviceProduct
+	fieldDeviceVersion
+	fieldDeviceEventClassID
+	fieldName
+	fieldSeverity
+	headerFields
+)
+
+// Event is one parsed event: the version, and the six header fields and extension pairs
+// as Spans of the bytes it last read; its zero value is an empty event ready for Parse.
 type Event struct {
-	raw []byte
+	raw     []byte // the bytes the spans index: the input of Parse, or bytes of owned
+	owned   []byte // bytes e owns, which only Clone, CloneTo and UnmarshalText write
+	pairs   []pair
+	header  [headerFields]Span
+	version uint16
 
-	Version    Version
-	Vendor     Span
-	Product    Span
-	DevVersion Span
-	ClassID    Span
-	Name       Span
-	Severity   Span
-
-	ExtCount       int
 	headerComplete bool
-
-	extKeys  [MaxExtensions]Span
-	extVals  [MaxExtensions]Span
-	extPacks [MaxExtensions]uint32
 }
 
-// Valid reports whether the header was fully parsed.
-func (e *Event) Valid() bool { return e.headerComplete }
+// HeaderComplete reports whether the last Parse read the whole header, seventh '|'
+// included, so a fault in the extension leaves it true.
+func (e *Event) HeaderComplete() bool { return e.headerComplete }
 
-// Reset clears the Event to its zero state.
-func (e *Event) Reset() {
-	e.raw = nil
-	e.Version = InvalidVersion
-	e.Vendor = Span{}
-	e.Product = Span{}
-	e.DevVersion = Span{}
-	e.ClassID = Span{}
-	e.Name = Span{}
-	e.Severity = Span{}
-	e.ExtCount = 0
-	e.headerComplete = false
-}
+// Version returns the CEF version, 0 when Parse did not read one.
+func (e *Event) Version() Version { return Version(e.version) }
 
-// Bytes returns the raw bytes for the given Span, or nil if out of range.
-func (e *Event) Bytes(s Span) []byte {
-	if e.raw == nil || int(s.End) > len(e.raw) || s.Start > s.End {
-		return nil
-	}
-	return e.raw[s.Start:s.End]
-}
+// DeviceVendor returns the span of the Device Vendor field, escapes kept, empty before
+// Parse reads it.
+func (e *Event) DeviceVendor() Span { return e.header[fieldDeviceVendor] }
 
-// Text returns a string for the given Span, or "" if out of range.
-func (e *Event) Text(s Span) string {
-	if e.raw == nil || int(s.End) > len(e.raw) || s.Start > s.End {
-		return ""
-	}
-	return string(e.raw[s.Start:s.End])
-}
+// DeviceProduct returns the span of the Device Product field, escapes kept.
+func (e *Event) DeviceProduct() Span { return e.header[fieldDeviceProduct] }
 
-// AppendBytes appends the raw bytes for Span s to dst.
-// Zero-alloc when dst has sufficient capacity.
-func (e *Event) AppendBytes(dst []byte, s Span) []byte {
-	if e.raw == nil || int(s.End) > len(e.raw) || s.Start > s.End {
-		return dst
-	}
-	return append(dst, e.raw[s.Start:s.End]...)
-}
+// DeviceVersion returns the span of the Device Version field, escapes kept.
+func (e *Event) DeviceVersion() Span { return e.header[fieldDeviceVersion] }
 
-// Ext looks up an extension by byte-slice key, returning the first occurrence
-// of a repeated key. Zero-alloc.
-func (e *Event) Ext(key []byte) (Span, bool) {
-	if e.raw == nil || len(key) == 0 {
-		return Span{}, false
-	}
-	pack := keyPackBytes(key)
-	keyLen := u32(len(key))
-	for i := range e.ExtCount {
-		if e.extPacks[i] != pack {
-			continue
-		}
-		k := e.extKeys[i]
-		if k.End-k.Start != keyLen {
-			continue
-		}
-		if keyLen <= 4 || bytes.Equal(e.raw[k.Start+4:k.End], key[4:]) {
-			return e.extVals[i], true
-		}
-	}
-	return Span{}, false
-}
+// DeviceEventClassID returns the span of the Device Event Class ID field, escapes kept.
+func (e *Event) DeviceEventClassID() Span { return e.header[fieldDeviceEventClassID] }
 
-// ExtString looks up an extension by string key, returning the first
-// occurrence of a repeated key. Zero-alloc.
-func (e *Event) ExtString(key string) (Span, bool) {
-	if e.raw == nil || key == "" {
-		return Span{}, false
-	}
-	pack := keyPackString(key)
-	keyLen := u32(len(key))
-	for i := range e.ExtCount {
-		if e.extPacks[i] != pack {
-			continue
-		}
-		k := e.extKeys[i]
-		if k.End-k.Start != keyLen {
-			continue
-		}
-		if keyLen <= 4 || string(e.raw[k.Start+4:k.End]) == key[4:] {
-			return e.extVals[i], true
-		}
-	}
-	return Span{}, false
-}
+// Name returns the span of the Name field, escapes kept.
+func (e *Event) Name() Span { return e.header[fieldName] }
 
-// ExtAt returns the i-th extension pair.
+// Severity returns the span of the Severity field, escapes kept.
+func (e *Event) Severity() Span { return e.header[fieldSeverity] }
+
+// ExtCount returns the number of extension pairs e holds.
+func (e *Event) ExtCount() int { return len(e.pairs) }
+
+// ExtAt returns the i-th pair in input order, and false when i is outside
+// [0, ExtCount()).
 func (e *Event) ExtAt(i int) (ExtPair, bool) {
-	if i < 0 || i >= e.ExtCount {
+	if i < 0 || i >= len(e.pairs) {
 		return ExtPair{}, false
 	}
-	return ExtPair{Key: e.extKeys[i], Value: e.extVals[i]}, true
+	p := &e.pairs[i]
+	return ExtPair{Key: p.keySpan(), Value: p.valueSpan()}, true
 }
 
-// All returns an iterator over extension key-value pairs. Allocates
-// ~40 B per call; use ExtAt in a loop for zero-alloc iteration.
+// All yields the key and raw value span of each pair in input order; a range over it
+// allocates nothing.
 func (e *Event) All() iter.Seq2[Span, Span] {
 	return func(yield func(Span, Span) bool) {
-		for i := range e.ExtCount {
-			if !yield(e.extKeys[i], e.extVals[i]) {
+		for _, p := range e.pairs {
+			if !yield(p.keySpan(), p.valueSpan()) {
 				return
 			}
 		}
 	}
 }
 
-// Clone returns a deep copy independent of the original input buffer.
-// Only the referenced byte range is copied.
-func (e *Event) Clone() *Event {
-	c := new(Event)
-	*c = *e
-	lo, hi := e.usedRange()
-	if lo >= hi {
-		// Valid event with no referenced bytes: keep a non-nil empty buffer so
-		// MarshalText/String still reproduce it; nil for an empty Event.
-		if e.raw != nil {
-			c.raw = []byte{}
-		} else {
-			c.raw = nil
+// Ext returns the raw value span of the last pair whose key equals key, and false when
+// none does; no allocation.
+func (e *Event) Ext(key []byte) (Span, bool) { return lookup(e, key) }
+
+// ExtString is Ext for a string key.
+func (e *Event) ExtString(key string) (Span, bool) { return lookup(e, key) }
+
+// wordLen is the number of bytes of a word, as keyPack reads one.
+const wordLen = 4
+
+// lookup returns the value span of the last pair of e whose key is key.
+func lookup[T Text](e *Event, key T) (Span, bool) {
+	pack, pairs := keyPack(key), e.pairs
+	for len(pairs) > 0 {
+		last := len(pairs) - 1
+		if p := &pairs[last]; p.pack == pack && int(p.eq-p.key) == len(key) &&
+			(len(key) <= wordLen || string(e.raw[p.key+wordLen:p.eq]) == string(key[wordLen:])) {
+			return p.valueSpan(), true
 		}
-		c.rebase(0)
-		return c
+		pairs = pairs[:last]
 	}
-	c.raw = make([]byte, hi-lo)
-	copy(c.raw, e.raw[lo:hi])
-	c.rebase(lo)
-	return c
+	return Span{}, false
 }
 
-// CloneTo copies the event into dst, reusing dst's raw buffer when possible.
-// Returns dst for chaining. Zero allocations after warmup.
-func (e *Event) CloneTo(dst *Event) *Event {
-	lo, hi := e.usedRange()
-	raw := dst.raw
-	*dst = *e
-	needed := int(hi - lo)
-	if needed == 0 {
-		// Mirror Clone: non-nil empty buffer for a valid event, nil otherwise.
-		if e.raw != nil {
-			dst.raw = raw[:0]
-			if dst.raw == nil {
-				dst.raw = []byte{}
-			}
-		} else {
-			dst.raw = nil
-		}
-		dst.rebase(0)
-		return dst
+// decimal is the base in which the package writes numbers.
+const decimal = 10
+
+// Shifts of the second to the eighth byte of a little-endian word.
+const (
+	lane1 = 8
+	lane2 = 16
+	lane3 = 24
+	lane4 = 32
+	lane5 = 40
+	lane6 = 48
+	lane7 = 56
+)
+
+// Lanes of a scan word, the scanBytes input bytes a uint64 holds: laneOnes has 1 in
+// each byte, laneLow7 its seven low bits and laneHigh its high bit.
+const (
+	scanBytes = 8
+	laneBits  = 8
+	laneOnes  = 0x0101010101010101
+	laneLow7  = 0x7f * laneOnes
+	laneHigh  = 0x80 * laneOnes
+)
+
+// zeroLanes returns laneHigh's bit in each byte of w that is zero, and 0 elsewhere.
+func zeroLanes(w uint64) uint64 { return ^((w&laneLow7 + laneLow7) | w) & laneHigh }
+
+// keyPack returns the first wordLen bytes of key as a little-endian word, the bytes
+// past its end zero.
+func keyPack[T Text](key T) uint32 {
+	if len(key) >= wordLen {
+		return uint32(key[0]) | uint32(key[1])<<lane1 | uint32(key[2])<<lane2 |
+			uint32(key[3])<<lane3
 	}
-	if cap(raw) >= needed {
-		dst.raw = raw[:needed]
-	} else {
-		dst.raw = make([]byte, needed)
+	var pack uint32
+	for i := len(key) - 1; i >= 0; i-- {
+		pack = pack<<lane1 | uint32(key[i])
 	}
-	copy(dst.raw, e.raw[lo:hi])
-	dst.rebase(lo)
-	return dst
+	return pack
 }
 
-func (e *Event) usedRange() (lo, hi uint32) {
-	if e.raw == nil {
-		return 0, 0
+// Bytes returns the bytes s covers as a view whose capacity ends at s.End, never nil:
+// an empty view of no capacity when s is empty, inverted or ends past the event's
+// bytes; no allocation.
+func (e *Event) Bytes(s Span) []byte { return view(e.raw, s) }
+
+// view returns the bytes of raw that s covers, capacity capped at s.End, or an empty
+// view of no capacity when s is empty, inverted or ends past raw.
+func view(raw []byte, s Span) []byte {
+	if s.Start >= s.End || uint64(s.End) > uint64(len(raw)) {
+		var none [0]byte
+		return none[:]
 	}
-	lo = u32(len(e.raw))
-	hi = 0
-	hs := [6]Span{e.Vendor, e.Product, e.DevVersion, e.ClassID, e.Name, e.Severity}
-	for _, s := range hs {
-		if s.IsEmpty() {
-			continue
-		}
-		if s.Start < lo {
-			lo = s.Start
-		}
-		if s.End > hi {
-			hi = s.End
-		}
-	}
-	if e.ExtCount > 0 {
-		if e.extKeys[0].Start < lo {
-			lo = e.extKeys[0].Start
-		}
-		if end := e.extVals[e.ExtCount-1].End; end > hi {
-			hi = end
-		}
-	}
-	if lo >= hi {
-		return 0, 0
-	}
-	return lo, hi
+	return raw[s.Start:s.End:s.End]
 }
 
-func (e *Event) rebase(offset uint32) {
-	for _, s := range [...]*Span{&e.Vendor, &e.Product, &e.DevVersion, &e.ClassID, &e.Name, &e.Severity} {
-		if s.IsEmpty() {
-			// Drop stale offsets so empty fields never point outside the clone.
-			*s = Span{}
-			continue
-		}
-		s.Start -= offset
-		s.End -= offset
-	}
-	for i := range e.ExtCount {
-		e.extKeys[i].Start -= offset
-		e.extKeys[i].End -= offset
-		e.extVals[i].Start -= offset
-		e.extVals[i].End -= offset
-	}
-}
+// Text returns string(Bytes(s)): one allocation for a span of two bytes or more, none
+// for an empty or one-byte span.
+func (e *Event) Text(s Span) string { return string(e.Bytes(s)) }
 
-func (e *Event) appendHeader(dst []byte) []byte {
-	dst = append(dst, "CEF:"...)
-	// Clamp InvalidVersion (-1) to 0 so a best-effort partial event never emits
-	// the non-re-parseable "CEF:-1".
-	v := max(e.Version, 0)
-	dst = strconv.AppendInt(dst, int64(v), 10)
-	hs := [6]Span{e.Vendor, e.Product, e.DevVersion, e.ClassID, e.Name, e.Severity}
-	for _, s := range hs {
-		dst = append(dst, '|')
-		if b := e.Bytes(s); b != nil {
-			dst = append(dst, b...)
-		}
-	}
-	return append(dst, '|')
-}
+// AppendBytes appends the bytes s covers to dst, and nothing when s is inverted or ends
+// past the event's bytes; no allocation when dst has room.
+func (e *Event) AppendBytes(dst []byte, s Span) []byte { return append(dst, e.Bytes(s)...) }
 
-func (e *Event) appendExtensions(dst []byte) []byte {
-	for i := range e.ExtCount {
-		if i > 0 {
-			dst = append(dst, ' ')
-		}
-		if b := e.Bytes(e.extKeys[i]); b != nil {
-			dst = append(dst, b...)
-		}
-		dst = append(dst, '=')
-		if b := e.Bytes(e.extVals[i]); b != nil {
-			dst = append(dst, b...)
-		}
-	}
-	return dst
-}
+// Clone returns a copy of e that owns its bytes and pairs: one allocation for the
+// Event, one for the bytes from its first header field to the end of its last span when
+// there are any, and one for its pairs when there are any.
+func (e *Event) Clone() *Event { return e.copyTo(new(Event)) }
 
-// AppendText appends the canonical CEF representation to dst.
-// Escape sequences are preserved as-is.
+// CloneTo makes dst, which must not be nil, a copy of e that owns its bytes and pairs,
+// and returns it; dst may be e. It writes only dst's pairs and owned bytes, reused with
+// no allocation unless too few, or more than 64 KiB for a copy that needs no more.
+func (e *Event) CloneTo(dst *Event) *Event { return e.copyTo(dst) }
+
+// AppendText appends e's text or fails with dst unchanged: ErrIncompleteHeader unless
+// HeaderComplete, ErrExtOverflow above MaxExtensions pairs or for a last value ending
+// in a space, CR or LF, then ErrInvalidUTF8; no allocation when dst has room.
 func (e *Event) AppendText(dst []byte) ([]byte, error) {
-	if e.raw == nil {
-		return dst, nil
+	if !e.headerComplete {
+		return dst, ErrIncompleteHeader
 	}
-	dst = slices.Grow(dst, e.estimateTextLen())
-	dst = e.appendHeader(dst)
-	return e.appendExtensions(dst), nil
+	if len(e.pairs) > MaxExtensions || e.cutTrailing() {
+		return dst, ErrExtOverflow
+	}
+	lo, hi := e.coveredRange(e.pairs)
+	if !utf8.Valid(e.raw[lo:hi]) {
+		return dst, ErrInvalidUTF8
+	}
+	fields := e.raw[lo:e.header[fieldSeverity].End]
+	var ext []byte
+	if len(e.pairs) > 0 {
+		ext = e.raw[e.pairs[0].key:hi]
+	}
+	dst = slices.Grow(dst, len(cefPrefix)+versionLen(e.version)+len(fields)+len(ext)+len("||"))
+	dst = append(dst, cefPrefix...)
+	dst = strconv.AppendUint(dst, uint64(e.version), decimal)
+	dst = append(dst, '|')
+	dst = append(dst, fields...)
+	dst = append(dst, '|')
+	return append(dst, ext...), nil
 }
 
-func (e *Event) estimateTextLen() int {
-	n := 4 + versionDigits(e.Version)
-	hs := [6]Span{e.Vendor, e.Product, e.DevVersion, e.ClassID, e.Name, e.Severity}
-	for _, s := range hs {
-		n += 1 + int(s.Len())
-	}
-	n++
-	for i := range e.ExtCount {
-		if i > 0 {
-			n++
-		}
-		n += int(e.extKeys[i].Len()) + 1 + int(e.extVals[i].Len())
-	}
-	return n
-}
-
-// versionDigits returns the byte count appendHeader emits for the version
-// (negative clamps to "0"; all digits counted).
-func versionDigits(v Version) int {
-	if v < 10 {
-		return 1
-	}
-	n := 0
-	for v > 0 {
-		v /= 10
+// versionLen returns the number of decimal digits of v.
+func versionLen(v uint16) int {
+	n := 1
+	for ; v >= decimal; v /= decimal {
 		n++
 	}
 	return n
 }
 
-// MarshalText implements encoding.TextMarshaler.
+// MarshalText returns AppendText(nil), the text UnmarshalText reads back to an Event
+// equal to e: one allocation, and nil with AppendText's error on failure.
 func (e *Event) MarshalText() ([]byte, error) { return e.AppendText(nil) }
 
-// UnmarshalText implements encoding.TextUnmarshaler. Copies the input
-// and parses it. For zero-alloc parsing, use Parser.Parse directly.
+// UnmarshalText copies text into bytes e owns and parses the copy under MaxExtensions,
+// keeping the partial event on a fault; it allocates only a fault's *ParseError, and
+// bytes or pairs when e's are too few, or over 64 KiB for a text that needs no more.
 func (e *Event) UnmarshalText(text []byte) error {
-	buf := bytes.Clone(text)
-	var p Parser
-	p.maxExtensions = MaxExtensions
-	parsed, err := p.Parse(buf)
-	if err != nil {
-		return err
+	if !exceedsSpans(len(text)) { // Parse refuses a longer text and keeps none of it
+		b := e.ownBytes(len(text))
+		copy(b, text)
+		text = b
 	}
-	*e = *parsed
-	return nil
+	return e.Parse(text, MaxExtensions)
 }
 
-// String returns a human-readable summary.
+// Reset drops e's reference to its input: e then answers as the zero Event and keeps
+// its storage for the next Parse.
+func (e *Event) Reset() { e.restart(nil) }
+
+// Limits of the pairs String shows: how many, and the most bytes of each value.
+const (
+	shownPairs    = 3
+	shownValueLen = 30
+)
+
+// Fixed parts of String's text.
+const (
+	summaryOpen   = "Event{ver="
+	summaryCount  = " exts="
+	summaryMore   = " ..."
+	summaryCut    = "..."
+	summaryClose  = "}"
+	summaryDigits = len("18446744073709551615")
+)
+
+// String returns a one-line summary for debugging: the version, the header fields, the
+// pair count and the first three pairs, each value cut at 30 bytes and each CR or LF
+// written as a space; one allocation.
 func (e *Event) String() string {
-	if e.raw == nil {
-		return "Event{}"
+	labels := [headerFields]string{" vendor=", " product=", " devver=", " classid=", " name=", " sev="}
+	shown := e.pairs[:min(len(e.pairs), shownPairs)]
+	n := len(summaryOpen) + len(summaryCount) + 2*summaryDigits + len("[]") + len(summaryMore) +
+		len(summaryClose)
+	var views [headerFields][]byte
+	for i, s := range e.header {
+		views[i] = e.Bytes(s)
+		n += len(labels[i]) + len(views[i])
 	}
+	for i := range shown {
+		n += len(" =") + len(e.Bytes(shown[i].keySpan())) + shownValueLen + len(summaryCut)
+	}
+	lo, hi := e.coveredRange(nil)
+	breaks := hasLineBreak(view(e.raw, Span{Start: offset(lo), End: offset(hi)}))
 	var b strings.Builder
-	b.Grow(256)
-	b.WriteString("Event{ver=")
-	b.WriteString(e.Version.String())
-	b.WriteString(" vendor=")
-	b.WriteString(e.Text(e.Vendor))
-	b.WriteString(" product=")
-	b.WriteString(e.Text(e.Product))
-	b.WriteString(" devver=")
-	b.WriteString(e.Text(e.DevVersion))
-	b.WriteString(" classid=")
-	b.WriteString(e.Text(e.ClassID))
-	b.WriteString(" name=")
-	b.WriteString(e.Text(e.Name))
-	b.WriteString(" sev=")
-	b.WriteString(e.Text(e.Severity))
-	b.WriteString(" exts=")
-	b.WriteString(strconv.Itoa(e.ExtCount))
-	e.writeExtSample(&b)
-	b.WriteByte('}')
+	b.Grow(n)
+	var digits [summaryDigits]byte
+	b.WriteString(summaryOpen)
+	b.Write(strconv.AppendUint(digits[:0], uint64(e.version), decimal))
+	for i, v := range views {
+		b.WriteString(labels[i])
+		if breaks {
+			writeLine(&b, v)
+		} else {
+			b.Write(v)
+		}
+	}
+	b.WriteString(summaryCount)
+	b.Write(strconv.AppendInt(digits[:0], int64(len(e.pairs)), decimal))
+	e.writePairs(&b)
+	b.WriteString(summaryClose)
 	return b.String()
 }
 
-func (e *Event) writeExtSample(b *strings.Builder) {
-	if e.ExtCount == 0 {
+// copyTo makes dst a copy of e that owns its bytes and pairs, and returns it.
+func (e *Event) copyTo(dst *Event) *Event {
+	lo, hi := e.coveredRange(e.pairs)
+	b := dst.ownBytes(hi - lo)
+	copy(b, e.raw[lo:hi])
+	if cap(dst.pairs) < len(e.pairs) {
+		dst.pairs = make([]pair, 0, len(e.pairs))
+	}
+	dst.pairs = append(dst.pairs[:0], e.pairs...)
+	dst.header, dst.version, dst.headerComplete = e.header, e.version, e.headerComplete
+	dst.raw = b
+	dst.rebase()
+	return dst
+}
+
+// coveredRange returns the bytes of e.raw that e's header fields and pairs, the first
+// pairs of e, cover: from the first header field to the end of the last of pairs, or of
+// the last header field Parse reached.
+func (e *Event) coveredRange(pairs []pair) (lo, hi int) {
+	lo = int(e.header[fieldDeviceVendor].Start)
+	if len(pairs) > 0 {
+		return lo, int(pairs[len(pairs)-1].end)
+	}
+	for _, s := range e.header {
+		hi = max(hi, int(s.End))
+	}
+	return lo, hi
+}
+
+// keptBytes is the most owned bytes an Event keeps for a copy that needs fewer.
+const keptBytes = 64 << 10
+
+// ownBytes returns n bytes of storage e owns, reusing e.owned unless it is too small,
+// or holds more than keptBytes for n that does not.
+func (e *Event) ownBytes(n int) []byte {
+	if c := cap(e.owned); n > c || (c > keptBytes && n <= keptBytes) {
+		e.owned = make([]byte, n)
+	}
+	return e.owned[:n]
+}
+
+// rebase moves e's spans down by the start of its Device Vendor field, where the bytes
+// e now holds start; a header field Parse did not reach keeps the zero Span.
+func (e *Event) rebase() {
+	lo := e.header[fieldDeviceVendor].Start
+	for i := range e.header {
+		if s := &e.header[i]; s.End >= lo {
+			s.Start -= lo
+			s.End -= lo
+		}
+	}
+	pairs := e.pairs
+	for i := range pairs {
+		p := &pairs[i]
+		p.key -= lo
+		p.eq -= lo
+		p.end -= lo
+	}
+}
+
+// cutTrailing reports whether e's last value ends in a space, CR or LF, which only a
+// cut at a pair limit leaves: Parse drops them from the end of an extension.
+func (e *Event) cutTrailing() bool {
+	n := len(e.pairs)
+	if n == 0 {
+		return false
+	}
+	last := e.Bytes(e.pairs[n-1].valueSpan())
+	return classStart(last, classTrailing) < len(last)
+}
+
+// restart makes e an empty event over raw, its storage kept.
+func (e *Event) restart(raw []byte) {
+	e.raw = raw
+	e.header = [headerFields]Span{}
+	e.version = 0
+	e.pairs = e.pairs[:0]
+	e.headerComplete = false
+}
+
+// writePairs writes the first shownPairs pairs of e as String shows them.
+func (e *Event) writePairs(b *strings.Builder) {
+	shown := e.pairs[:min(len(e.pairs), shownPairs)]
+	if len(shown) == 0 {
 		return
 	}
-	const maxShow = 3
-	const maxVal = 30
 	b.WriteByte('[')
-	n := min(e.ExtCount, maxShow)
-	for i := range n {
+	for i := range shown {
 		if i > 0 {
 			b.WriteByte(' ')
 		}
-		b.WriteString(e.Text(e.extKeys[i]))
+		b.Write(e.Bytes(shown[i].keySpan()))
 		b.WriteByte('=')
-		v := e.Text(e.extVals[i])
-		if len(v) > maxVal {
-			b.WriteString(v[:maxVal])
-			b.WriteString("...")
+		v := e.Bytes(shown[i].valueSpan())
+		if cut := v[:min(len(v), shownValueLen)]; hasLineBreak(cut) {
+			writeLine(b, cut)
 		} else {
-			b.WriteString(v)
+			b.Write(cut)
+		}
+		if len(v) > shownValueLen {
+			b.WriteString(summaryCut)
 		}
 	}
-	if e.ExtCount > maxShow {
-		b.WriteString(" ...")
+	if len(e.pairs) > len(shown) {
+		b.WriteString(summaryMore)
 	}
 	b.WriteByte(']')
 }
 
-// keyPackBytes packs up to the first 4 bytes of key into a uint32 for
-// single-instruction pre-filtering.
-func keyPackBytes(key []byte) uint32 {
-	n := len(key)
-	if n >= 4 {
-		return binary.LittleEndian.Uint32(key)
+// hasLineBreak reports whether b holds a byte up to '\r', as every CR and LF is: a word
+// at a time from b's start and from its last scanBytes bytes, or a byte at a time when
+// b holds fewer.
+func hasLineBreak(b []byte) bool {
+	if len(b) < scanBytes {
+		return slices.ContainsFunc(b, func(c byte) bool { return c <= '\r' })
 	}
-	var h uint32
-	for i := range n {
-		h |= uint32(key[i]) << (i * 8)
+	low := lowLanes(binary.LittleEndian.Uint64(b[len(b)-scanBytes:]))
+	for p := 0; p+scanBytes < len(b); p += scanBytes {
+		low |= lowLanes(binary.LittleEndian.Uint64(b[p:]))
 	}
-	return h
+	return low&laneHigh != 0
 }
 
-func keyPackString(key string) uint32 {
-	n := len(key)
-	if n >= 4 {
-		return uint32(key[0]) | uint32(key[1])<<8 | uint32(key[2])<<16 | uint32(key[3])<<24
-	}
-	var h uint32
-	for i := range n {
-		h |= uint32(key[i]) << (i * 8)
-	}
-	return h
-}
+// lowLanes returns a word whose laneHigh bits are not all zero when a byte of w is at
+// most '\r'.
+func lowLanes(w uint64) uint64 { return (w - ('\r'+1)*laneOnes) &^ w }
 
-// u32 narrows a non-negative length or offset (bounded by the input size, which
-// Parse caps at math.MaxUint32) to uint32. A plain conversion avoids the
-// "n & math.MaxUint32" form, which does not compile on 32-bit GOARCHs.
-func u32(n int) uint32 {
-	return uint32(n) //nolint:gosec // bounded non-negative length/offset
+// writeLine writes v to b with each CR or LF written as a space.
+func writeLine(b *strings.Builder, v []byte) {
+	start := 0
+	for i, c := range v {
+		if c == '\r' || c == '\n' {
+			b.Write(v[start:i])
+			b.WriteByte(' ')
+			start = i + 1
+		}
+	}
+	b.Write(v[start:])
 }

@@ -1,39 +1,20 @@
-// Package cef provides a zero-allocation CEF (Common Event Format) parser.
-//
-// Supports CEF:0, CEF:1, and future versions per the ArcSight CEF spec (v26).
-//
-// # Usage
-//
-//	p := cef.NewParser()
-//	e, err := p.Parse(input)
-//	if err != nil {
-//	    log.Fatal(err)
-//	}
-//	fmt.Println(e.Text(e.Vendor))
-//	if src, ok := e.ExtString("src"); ok {
-//	    fmt.Println(e.Text(src))
-//	}
-//
-// # Allocation model
-//
-// Parser.Parse and the zero-alloc accessors (Bytes, Ext, ExtString, ExtAt,
-// AppendBytes, AppendText into a pre-sized buffer) do not allocate on
-// successful paths. Text and MarshalText allocate the returned string/buffer.
-// Clone/CloneTo allocate only the minimal byte range covering parsed spans.
-// The iter.Seq2 returned by All allocates the closure; prefer ExtAt in a loop.
-//
-// # Lifetime
-//
-// The *Event returned by Parse aliases the input buffer and is valid until
-// the next Parse call on the same Parser. Use Clone or CloneTo to retain a
-// result across further Parse calls.
-//
-// The error returned by Parse is an independent value, safe to retain, compare
-// with errors.Is, or read concurrently with a later Parse.
-//
-// # Concurrency
-//
-// A Parser is not safe for concurrent use. A parsed *Event is safe for
-// concurrent readers as long as no one writes to it or to the underlying
-// input buffer.
+// Package cef reads and writes Common Event Format events, Version 27 of the ArcSight
+// standard, where they lie: Parse reads one event that starts with "CEF:" into an Event
+// that holds its version, and its six header fields and extension pairs as Spans of the
+// input, with no copy and, once the Event's pair storage holds the event's pairs, no
+// allocation but the *ParseError of a fault; the caller declares the most pairs it
+// accepts. Fields keep their escape sequences, which UnescapeHeader and
+// UnescapeExtValue decode and AppendEscapedHeader and AppendEscapedExtValue write, and
+// ValidKey checks a key. On a fault Parse returns a *ParseError wrapping one sentinel
+// and the Event keeps what precedes the fault. Clone and CloneTo give an Event that
+// owns its bytes, and AppendText writes an Event as text that Parse reads back to an
+// equal Event. CloneTo and UnmarshalText write only bytes the Event owns, which they
+// reuse unless too few, or more than 64 KiB for a copy that needs no more. An Event
+// reads the input of its last Parse in place until its next Parse, and a view of its
+// own bytes lasts until the next CloneTo into it or UnmarshalText; the zero Event is
+// ready to use, and an Event is safe for concurrent readers while nobody writes it
+// (Parse, UnmarshalText, Reset, CloneTo into it) or its input. A value copy of an Event
+// shares its pairs and owned bytes: after a Parse, CloneTo or UnmarshalText into one
+// copy, the other is not to be read, because its pairs then index another input, and
+// Clone gives an independent copy.
 package cef

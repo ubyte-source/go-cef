@@ -1,74 +1,60 @@
 package cef
 
-import "bytes"
+import (
+	"bytes"
+	"slices"
+)
 
-type escapeTable [256]byte
-
-var headerEscapes = func() escapeTable {
-	var t escapeTable
-	t['|'] = '|'
-	t['\\'] = '\\'
-	return t
-}()
-
-var extEscapes = func() escapeTable {
-	var t escapeTable
-	t['='] = '='
-	t['\\'] = '\\'
-	t['n'] = '\n'
-	t['r'] = '\r'
-	return t
-}()
-
-// UnescapeHeader unescapes a CEF header field (\| -> |, \\ -> \).
-// Returns raw unchanged (aliasing the input) if no '\' is present; otherwise
-// writes into dst. dst must not overlap raw.
+// UnescapeHeader decodes \\ and \| in raw and keeps any other backslash: raw without a
+// backslash comes back itself, capacity capped at its length, other raw decoded over
+// dst[:0], dst may be raw[:0]; one allocation when dst has less room than raw.
 func UnescapeHeader(raw, dst []byte) []byte {
-	if bytes.IndexByte(raw, '\\') < 0 {
-		return raw
+	i := bytes.IndexByte(raw, '\\')
+	if i < 0 {
+		return slices.Clip(raw)
 	}
-	return unescape(raw, dst, &headerEscapes)
+	return unescape(raw, dst, i, classHeaderEscape)
 }
 
-// UnescapeExtValue unescapes a CEF extension value
-// (\= -> =, \\ -> \, \n -> LF, \r -> CR).
-// Returns raw unchanged (aliasing the input) if no '\' is present; otherwise
-// writes into dst. dst must not overlap raw.
+// UnescapeExtValue decodes \\, \=, \n and \r in raw and keeps any other backslash: raw
+// without a backslash comes back itself, capacity capped, other raw decoded over
+// dst[:0], dst may be raw[:0]; one allocation when dst has less room than raw.
 func UnescapeExtValue(raw, dst []byte) []byte {
-	if bytes.IndexByte(raw, '\\') < 0 {
-		return raw
+	i := bytes.IndexByte(raw, '\\')
+	if i < 0 {
+		return slices.Clip(raw)
 	}
-	return unescape(raw, dst, &extEscapes)
+	return unescape(raw, dst, i, classValueEscape)
 }
 
-func unescape(raw, dst []byte, table *escapeTable) []byte {
-	if cap(dst) < len(raw) {
-		dst = make([]byte, 0, len(raw))
-	} else {
-		dst = dst[:0]
-	}
-
-	i := 0
-	for i < len(raw) {
-		j := bytes.IndexByte(raw[i:], '\\')
-		if j < 0 {
-			dst = append(dst, raw[i:]...)
-			break
+// unescape decodes raw over dst[:0], grown to the length of raw, from its first
+// backslash at i, the escapes of class resolved and a run of them walked in place.
+func unescape(raw, dst []byte, i int, class byte) []byte {
+	dst = append(slices.Grow(dst[:0], len(raw)), raw[:i]...)
+	for rest := raw[i:]; len(rest) > 0; {
+		if rest[0] != '\\' {
+			j := bytes.IndexByte(rest, '\\')
+			if j < 0 {
+				return append(dst, rest...)
+			}
+			dst, rest = append(dst, rest[:j]...), rest[j:]
 		}
-		dst = append(dst, raw[i:i+j]...)
-		i += j
-
-		if i+1 >= len(raw) {
-			dst = append(dst, raw[i])
-			break
+		if len(rest) > 1 && byteClasses[rest[1]]&class != 0 {
+			dst, rest = append(dst, unescaped(rest[1])), rest[2:]
+			continue
 		}
-		if repl := table[raw[i+1]]; repl != 0 {
-			dst = append(dst, repl)
-			i += 2
-		} else {
-			dst = append(dst, raw[i])
-			i++
-		}
+		dst, rest = append(dst, '\\'), rest[1:]
 	}
 	return dst
+}
+
+// unescaped returns the byte that a backslash and c stand for.
+func unescaped(c byte) byte {
+	switch c {
+	case 'n':
+		return '\n'
+	case 'r':
+		return '\r'
+	}
+	return c
 }

@@ -1,213 +1,169 @@
 package cef
 
 import (
+	"errors"
+	"reflect"
+	"slices"
 	"strings"
 	"testing"
 )
 
-func TestIsKeyByte(t *testing.T) {
-	valid := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-[]"
-	for _, c := range []byte(valid) {
-		if !isKeyByte[c] {
-			t.Errorf("isKeyByte[%q] = false, want true", rune(c))
-		}
+// extPairs parses testHeaderOnly followed by ext under MaxExtensions and returns the
+// pairs as key=value texts, with the error.
+func extPairs(t *testing.T, ext string) ([]string, error) {
+	t.Helper()
+	var e Event
+	err := e.Parse([]byte(testHeaderOnly+ext), MaxExtensions)
+	pairs := make([]string, 0, e.ExtCount())
+	for k, v := range e.All() {
+		pairs = append(pairs, e.Text(k)+"="+e.Text(v))
 	}
-	invalid := " \t\n=|\\/@#$%^&*(){}:;'\"<>,?!"
-	for _, c := range []byte(invalid) {
-		if isKeyByte[c] {
-			t.Errorf("isKeyByte[%q] = true, want false", rune(c))
-		}
+	if !e.HeaderComplete() {
+		t.Fatalf("Parse of extension %q: HeaderComplete() = %t, want true", ext, e.HeaderComplete())
 	}
+	return pairs, err
 }
 
-func TestIsKeyByteCorrectness(t *testing.T) {
-	var ref [256]bool
-	for c := byte('a'); c <= 'z'; c++ {
-		ref[c] = true
-	}
-	for c := byte('A'); c <= 'Z'; c++ {
-		ref[c] = true
-	}
-	for c := byte('0'); c <= '9'; c++ {
-		ref[c] = true
-	}
-	for _, c := range []byte{'.', '_', '-', '[', ']'} {
-		ref[c] = true
-	}
-	for i := range 256 {
-		got := isKeyByte[byte(i)]
-		want := ref[i]
-		if got != want {
-			t.Errorf("isKeyByte[%d / %q]: got %v, want %v", i, rune(i), got, want)
-		}
-	}
-}
-
-func TestEscapeDetectionInFindValueEnd(t *testing.T) {
-	// Verify that findValueEnd correctly handles escaped equals signs,
-	// which exercises the inline escape-detection logic that replaced isEscapedAt.
-	tests := []struct {
-		name string
-		data string
-		want uint32
+func TestEventParseExtensionsReadsThePairs(t *testing.T) {
+	for _, tc := range []struct {
+		ext  string
+		want []string
 	}{
-		{"unescaped_eq", "val key=x", 3},
-		{"escaped_eq", "val\\= key=x", 5},
-		{"double_backslash_eq", "val\\\\ key=x", 5},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			data := []byte(tt.data)
-			got := findValueEnd(data, 0, u32(len(data)))
-			if got != tt.want {
-				t.Errorf("findValueEnd(%q, 0, %d) = %d, want %d",
-					tt.data, len(data), got, tt.want)
-			}
-		})
-	}
-}
-
-func TestValidKeyEmpty(t *testing.T) {
-	if validKey(nil) {
-		t.Error("expected false for nil key")
-	}
-	if validKey([]byte{}) {
-		t.Error("expected false for empty key")
-	}
-}
-
-func TestFindValueEndOutOfRange(t *testing.T) {
-	// Exercise the guard: start >= end should return end.
-	data := []byte("hello")
-	got := findValueEnd(data, 100, 5)
-	if got != 5 {
-		t.Errorf("findValueEnd with start > end returned %d, want 5", got)
-	}
-	// start == end should also return end.
-	got = findValueEnd(data, 5, 5)
-	if got != 5 {
-		t.Errorf("findValueEnd with start == end returned %d, want 5", got)
+		{"", nil},
+		{"   ", nil},
+		{"\r\n", nil},
+		{"src=10.0.0.1", []string{"src=10.0.0.1"}},
+		{"  src=1 dst=2", []string{"src=1", "dst=2"}},
+		{"src= dst=1", []string{"src=", "dst=1"}},
+		{"a=1  b=2", []string{"a=1 ", "b=2"}},
+		{"a=1 b=2   ", []string{"a=1", "b=2"}},
+		{"a=1 b=2\r\n", []string{"a=1", "b=2"}},
+		{"a=1 b=2 \r \n", []string{"a=1", "b=2"}},
+		{"msg=a b c=d", []string{"msg=a b", "c=d"}},
+		{"url=http://x/?a=b&c=d e=f", []string{"url=http://x/?a=b&c=d", "e=f"}},
+		{`msg=a \= b c=d`, []string{`msg=a \= b`, "c=d"}},
+		{`msg=x \c=d`, []string{`msg=x \c=d`}},
+		{"msg=x\tc=d", []string{"msg=x\tc=d"}},
+		{"msg=x :c=d", []string{"msg=x :c=d"}},
+		{"a==b", []string{"a==b"}},
+		{"a==b c=d", []string{"a==b", "c=d"}},
+		{"a=1 =2", []string{"a=1 =2"}},
+		{"ad.x[0]=1 cs1-Label_x=2", []string{"ad.x[0]=1", "cs1-Label_x=2"}},
+		{"k=" + strings.Repeat("ab=", 300) + " z=1", []string{"k=" + strings.Repeat("ab=", 300), "z=1"}},
+		{"k=v " + strings.Repeat("a", 200) + "=x", []string{"k=v", strings.Repeat("a", 200) + "=x"}},
+	} {
+		got, err := extPairs(t, tc.ext)
+		if err != nil || strings.Join(got, "|") != strings.Join(tc.want, "|") {
+			t.Errorf("extension %q = %q, %v, want %q, nil", tc.ext, got, err, tc.want)
+		}
 	}
 }
 
-func TestFindValueEnd(t *testing.T) {
-	tests := []struct {
-		name  string
-		data  string
-		start uint32
-		want  uint32
+func TestEventParseExtensionsKeyFaults(t *testing.T) {
+	first := len(testHeaderOnly)
+	for _, tc := range []struct {
+		ext string
+		pos int
 	}{
-		{"no_equals", "hello", 0, 5},
-		{"next_key", "hello key=val", 0, 5},
-		{"trailing_spaces", "hello   ", 0, 5},
-		{"escaped_equals", "hello\\=world", 0, 12},
-		{"no_space_before_eq", "hello=world", 0, 11},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			data := []byte(tt.data)
-			got := findValueEnd(data, tt.start, u32(len(data)))
-			if got != tt.want {
-				t.Errorf("findValueEnd(%q, %d, %d) = %d, want %d",
-					tt.data, tt.start, len(data), got, tt.want)
-			}
-		})
-	}
-}
-
-func TestFindValueEndLongKeyRejected(t *testing.T) {
-	m := NewParser()
-	longKey := strings.Repeat("a", 64)
-	input := []byte(`CEF:0|V|P|1|100|N|5|msg=value ` + longKey + `=next`)
-	e, err := m.Parse(input)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	assertExt(t, e, "msg", "value "+longKey+"=next")
-}
-
-func TestFindValueEndNoMoreKeys(t *testing.T) {
-	m := NewParser()
-	e, err := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|msg=just a value with no more keys`))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	assertExt(t, e, "msg", "just a value with no more keys")
-}
-
-func TestFindValueEndNoValidKeyBoundary(t *testing.T) {
-	m := NewParser()
-	e, err := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|msg=2+2=`))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	assertExt(t, e, "msg", "2+2=")
-}
-
-func TestFindValueEndEscapedEqualsAtEnd(t *testing.T) {
-	m := NewParser()
-	input := []byte(`CEF:0|V|P|1|100|N|5|msg=value\=`)
-	e, err := m.Parse(input)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	assertExt(t, e, "msg", `value\=`)
-}
-
-func TestFindValueEndEqualsImmediatelyAfterValue(t *testing.T) {
-	m := NewParser()
-	input := []byte(`CEF:0|V|P|1|100|N|5|msg== src=1.2.3.4`)
-	e, err := m.Parse(input)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	assertExt(t, e, "msg", "=")
-	assertExt(t, e, "src", "1.2.3.4")
-}
-
-func TestFindValueEndDoSBudget(t *testing.T) {
-	fakeEquals := strings.Repeat("@=", 2000)
-	input := []byte("CEF:0|V|P|1|100|N|5|msg=" + fakeEquals)
-	m := NewParser()
-	e, err := m.Parse(input)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if e.ExtCount != 1 {
-		t.Errorf("ext count: got %d, want 1", e.ExtCount)
-	}
-	assertExt(t, e, "msg", strings.TrimRight(fakeEquals, " "))
-}
-
-// A maxKeyLen (63) key must split at a spaced-value boundary, like a 62-byte key.
-func TestFindKeyBeforeEqualsMaxKeyLen(t *testing.T) {
-	m := NewParser()
-	for _, l := range []int{maxKeyLen - 1, maxKeyLen} { // 62 and 63 must both split
-		key := strings.Repeat("k", l)
-		e, err := m.Parse([]byte("CEF:0|v|p|d|c|n|5|msg=hello " + key + "=v"))
-		if err != nil {
-			t.Fatalf("len=%d: %v", l, err)
+		{"junk", first},
+		{"  junk  ", first + 2},
+		{"junk k=v", first},
+		{"=v", first},
+		{"bad key=v", first},
+		{"k:x=v", first},
+	} {
+		var e Event
+		err := e.Parse([]byte(testHeaderOnly+tc.ext), MaxExtensions)
+		if pe := asParseError(err); pe == nil || !errors.Is(err, ErrExtKey) || int(pe.Position) != tc.pos {
+			t.Errorf("extension %q = %v, want ErrExtKey at byte %d", tc.ext, err, tc.pos)
 		}
-		if e.ExtCount != 2 {
-			t.Errorf("len=%d: ext count got %d, want 2", l, e.ExtCount)
+		if !e.HeaderComplete() || e.ExtCount() != 0 || e.Text(e.Name()) != "Name" {
+			t.Errorf("extension %q: HeaderComplete %t, ExtCount %d, Name %q, want the header kept and no pair",
+				tc.ext, e.HeaderComplete(), e.ExtCount(), e.Text(e.Name()))
 		}
-		if _, ok := e.ExtString(key); !ok {
-			t.Errorf("len=%d: key not found", l)
-		}
-		assertExt(t, e, "msg", "hello")
 	}
 }
 
-// Escaped "\=" must not consume the scan budget and drop later extensions.
-func TestFindValueEndEscapedEqualsKeepsBudget(t *testing.T) {
-	m := NewParser()
-	val := strings.Repeat(`x\=`, maxEqualsScanned+50)
-	e, err := m.Parse([]byte("CEF:0|v|p|d|c|n|5|msg=" + val + " realkey=realval"))
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+func TestEventParseExtensionsOverflowKeepsThePairsBefore(t *testing.T) {
+	var e Event
+	line := []byte(testHeaderOnly + "a=1 b=2 c=3")
+	err := e.Parse(line, 2)
+	if pe := asParseError(err); pe == nil || !errors.Is(err, ErrExtOverflow) || int(pe.Position) != len(line)-3 {
+		t.Fatalf("Parse(%q, 2) = %v, want ErrExtOverflow at byte %d", line, err, len(line)-3)
 	}
-	if _, ok := e.ExtString("realkey"); !ok {
-		t.Fatalf("realkey dropped (ext count %d): escaped \\= should not consume budget", e.ExtCount)
+	if p, ok := e.ExtAt(1); !ok || e.Text(p.Value) != "2" || e.ExtCount() != 2 {
+		t.Errorf("Parse(%q, 2): pairs %d, second value %q, want 2 pairs ending with 2",
+			line, e.ExtCount(), e.Bytes(p.Value))
 	}
-	assertExt(t, e, "realkey", "realval")
+}
+
+func TestClassStartFindsTheRunOfItsClass(t *testing.T) {
+	for _, tc := range []struct {
+		b     string
+		class byte
+		want  int
+	}{
+		{"", classTrailing, 0},
+		{"a", classTrailing, 1},
+		{"a \r\n", classTrailing, 1},
+		{" \r\n", classTrailing, 0},
+		{"a\tb\t", classTrailing, 4},
+		{"a\\ ", classTrailing, 2},
+		{"", classKey, 0},
+		{"abc", classKey, 0},
+		{"x dst", classKey, 2},
+		{"x=abc", classKey, 2},
+		{"x a:b", classKey, 4},
+		{"x ", classKey, 2},
+	} {
+		if got := classStart([]byte(tc.b), tc.class); got != tc.want {
+			t.Errorf("classStart(%q, %#x) = %d, want %d", tc.b, tc.class, got, tc.want)
+		}
+	}
+}
+
+func TestValueEndFindsTheNextKey(t *testing.T) {
+	for _, tc := range []struct {
+		ext       string
+		from      int
+		end, next int
+	}{
+		{"k=v", 2, 3, -1},
+		{"k=v x=y", 2, 3, 5},
+		{"k= x=y", 2, 2, 4},
+		{"k=a=b c=d", 2, 5, 7},
+		{"k=a :b=c", 2, 8, -1},
+		{"k==v x=y", 2, 4, 6},
+		{"k=a =b", 2, 6, -1},
+	} {
+		end, next := valueEnd([]byte(tc.ext), tc.from)
+		if end != tc.end || next != tc.next {
+			t.Errorf("valueEnd(%q, %d) = %d, %d, want %d, %d", tc.ext, tc.from, end, next, tc.end, tc.next)
+		}
+	}
+}
+
+func TestEventGrowPairsFirstTakesTheStartOrALowerLimit(t *testing.T) {
+	for limit, want := range map[int]int{1: 1, 15: 15, 16: 16, 17: 16} {
+		var e Event
+		e.growPairs(limit)
+		if cap(e.pairs) != want {
+			t.Errorf("first growth under the limit %d = %d pairs, want %d", limit, cap(e.pairs), want)
+		}
+	}
+}
+
+func TestEventGrowPairsDoublesUpToTheLimit(t *testing.T) {
+	var e Event
+	caps := make([]int, 0, 5)
+	for range 5 {
+		e.growPairs(100)
+		caps = append(caps, cap(e.pairs))
+	}
+	if want := []int{16, 32, 64, 100, 100}; !slices.Equal(caps, want) {
+		t.Errorf("pair storage after each growth = %v, want %v", caps, want)
+	}
+	if got := reflect.TypeFor[pair]().Size(); got != 16 {
+		t.Errorf("pair record = %d bytes, want 16", got)
+	}
 }

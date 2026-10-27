@@ -1,0 +1,380 @@
+[
+  {
+    "name": "cef_spec.rb:549 non-CEF payload with 0 header-like sections",
+    "line": "this is not cef",
+    "fault": "ErrPrefix",
+    "version": 0,
+    "header": ["", "", "", "", "", ""]
+  },
+  {
+    "name": "cef_spec.rb:562 non-CEF payload with 4 header-like sections",
+    "line": "a|b|c with several \\| escaped\\| pipes|d|bananas",
+    "fault": "ErrPrefix",
+    "version": 0,
+    "header": ["", "", "", "", "", ""]
+  },
+  {
+    "name": "cef_spec.rb:575 non-key/value extensions",
+    "line": "CEF:0|security|threatmanager|1.0|100|trojan successfully stopped|10|this is in the extensions space but it is not valid because it is not equals-separated key/value",
+    "fault": "ErrExtKey",
+    "version": 0,
+    "header": ["security", "threatmanager", "1.0", "100", "trojan successfully stopped", "10"]
+  },
+  {
+    "name": "cef_spec.rb:597 unescaped newlines",
+    "line": "CEF:0|security|threatmanager|1.0|100|trojan successfully stopped|10|src=10.0.0.67\nCEF:0|security|threatmanager|1.0|100|trojan successfully stopped|10|src=10.0.0.67\nCEF:0|security|threatmanager|1.0|100|trojan successfully stopped|10|src=10.0.0.67\nCEF:0|security|threatmanager|1.0|100|trojan successfully stopped|10|src=10.0.0.67\nCEF:0|security|threatmanager|1.0|100|trojan successfully stopped|10|src=10.0.0.67\n",
+    "version": 0,
+    "header": ["security", "threatmanager", "1.0", "100", "trojan successfully stopped", "10"],
+    "pairs": [
+      ["src", "10.0.0.67\nCEF:0|security|threatmanager|1.0|100|trojan successfully stopped|10|src=10.0.0.67\nCEF:0|security|threatmanager|1.0|100|trojan successfully stopped|10|src=10.0.0.67\nCEF:0|security|threatmanager|1.0|100|trojan successfully stopped|10|src=10.0.0.67\nCEF:0|security|threatmanager|1.0|100|trojan successfully stopped|10|src=10.0.0.67"]
+    ]
+  },
+  {
+    "name": "cef_spec.rb:619 header ending with two escaped backslashes",
+    "line": "CEF:0|security|threatmanager|1.0|100|double backslash\\\\\\\\|10|src=10.0.0.192 dst=12.121.122.82 spt=1232",
+    "version": 0,
+    "header": ["security", "threatmanager", "1.0", "100", "double backslash\\\\", "10"],
+    "pairs": [
+      ["src", "10.0.0.192"],
+      ["dst", "12.121.122.82"],
+      ["spt", "1232"]
+    ]
+  },
+  {
+    "name": "cef_spec.rb:627 the cef headers",
+    "line": "CEF:0|security|threatmanager|1.0|100|trojan successfully stopped|10|src=10.0.0.192 dst=12.121.122.82 spt=1232",
+    "version": 0,
+    "header": ["security", "threatmanager", "1.0", "100", "trojan successfully stopped", "10"],
+    "pairs": [
+      ["src", "10.0.0.192"],
+      ["dst", "12.121.122.82"],
+      ["spt", "1232"]
+    ]
+  },
+  {
+    "name": "cef_spec.rb:635 the cef body",
+    "line": "CEF:0|security|threatmanager|1.0|100|trojan successfully stopped|10|src=10.0.0.192 dst=12.121.122.82 spt=1232",
+    "version": 0,
+    "header": ["security", "threatmanager", "1.0", "100", "trojan successfully stopped", "10"],
+    "pairs": [
+      ["src", "10.0.0.192"],
+      ["dst", "12.121.122.82"],
+      ["spt", "1232"]
+    ]
+  },
+  {
+    "name": "cef_spec.rb:644 missing CEF headers",
+    "line": "CEF:0|||1.0|100|trojan successfully stopped|10|src=10.0.0.192 dst=12.121.122.82 spt=1232",
+    "version": 0,
+    "header": ["", "", "1.0", "100", "trojan successfully stopped", "10"],
+    "pairs": [
+      ["src", "10.0.0.192"],
+      ["dst", "12.121.122.82"],
+      ["spt", "1232"]
+    ]
+  },
+  {
+    "name": "cef_spec.rb:653 leading whitespace in the extension",
+    "line": "CEF:0|security|threatmanager|1.0|100|trojan successfully stopped|10| src=10.0.0.192 dst=12.121.122.82 spt=1232",
+    "version": 0,
+    "header": ["security", "threatmanager", "1.0", "100", "trojan successfully stopped", "10"],
+    "pairs": [
+      ["src", "10.0.0.192"],
+      ["dst", "12.121.122.82"],
+      ["spt", "1232"]
+    ]
+  },
+  {
+    "name": "cef_spec.rb:660 escaped pipe in a value",
+    "line": "CEF:0|security|threatmanager|1.0|100|trojan successfully stopped|10|moo=this\\|has an escaped pipe",
+    "version": 0,
+    "header": ["security", "threatmanager", "1.0", "100", "trojan successfully stopped", "10"],
+    "pairs": [
+      ["moo", "this\\|has an escaped pipe"]
+    ]
+  },
+  {
+    "name": "cef_spec.rb:667 unescaped pipe in a value",
+    "line": "CEF:0|security|threatmanager|1.0|100|trojan successfully stopped|10|moo=this|has an pipe",
+    "version": 0,
+    "header": ["security", "threatmanager", "1.0", "100", "trojan successfully stopped", "10"],
+    "pairs": [
+      ["moo", "this|has an pipe"]
+    ]
+  },
+  {
+    "name": "cef_spec.rb:675 equal signs in a value",
+    "line": "CEF:0|security|threatmanager|1.0|100|trojan successfully stopped|10|moo=this =has = equals\\=",
+    "version": 0,
+    "header": ["security", "threatmanager", "1.0", "100", "trojan successfully stopped", "10"],
+    "pairs": [
+      ["moo", "this =has = equals="]
+    ]
+  },
+  {
+    "name": "cef_spec.rb:690 escaped newline, carriage return, backslash and equal sign",
+    "line": "CEF:0|security|threatmanager|1.0|100|trojan successfully stopped|10|foo=bar msg=this message has escaped equals \\= and escaped newlines \\n escaped carriage returns \\r and escaped backslashes \\\\ in it bar=baz",
+    "version": 0,
+    "header": ["security", "threatmanager", "1.0", "100", "trojan successfully stopped", "10"],
+    "pairs": [
+      ["foo", "bar"],
+      ["msg", "this message has escaped equals = and escaped newlines \n escaped carriage returns \r and escaped backslashes \\ in it"],
+      ["bar", "baz"]
+    ]
+  },
+  {
+    "name": "cef_spec.rb:707 deviceReceiptTime and deviceTimeZone verbatim",
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|Very-High| eventId=1 msg=Worm successfully stopped art=1500464384997 deviceSeverity=10 rt=Jul 19 2017 10:50:21.127 src=10.0.0.1 sourceZoneURI=/All Zones/ArcSight System/Private Address Space Zones/RFC1918: 10.0.0.0-10.255.255.255 spt=1232 dst=2.1.2.2 destinationZoneURI=/All Zones/ArcSight System/Public Address Space Zones/RIPE NCC/2.0.0.0-2.255.255.255 (RIPE NCC) ahost=connector.rhel72 agt=192.168.231.129 agentZoneURI=/All Zones/ArcSight System/Private Address Space Zones/RFC1918: 192.168.0.0-192.168.255.255 amac=00-0C-29-51-8A-84 av=7.6.0.8009.0 atz=Europe/Lisbon at=syslog_file dvchost=client1 dtz=Europe/Moscow _cefVer=0.1 aid=3UBajWl0BABCABBzZSlmUdw==",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "Very-High"],
+    "pairs": [
+      ["eventId", "1"],
+      ["msg", "Worm successfully stopped"],
+      ["art", "1500464384997"],
+      ["deviceSeverity", "10"],
+      ["rt", "Jul 19 2017 10:50:21.127"],
+      ["src", "10.0.0.1"],
+      ["sourceZoneURI", "/All Zones/ArcSight System/Private Address Space Zones/RFC1918: 10.0.0.0-10.255.255.255"],
+      ["spt", "1232"],
+      ["dst", "2.1.2.2"],
+      ["destinationZoneURI", "/All Zones/ArcSight System/Public Address Space Zones/RIPE NCC/2.0.0.0-2.255.255.255 (RIPE NCC)"],
+      ["ahost", "connector.rhel72"],
+      ["agt", "192.168.231.129"],
+      ["agentZoneURI", "/All Zones/ArcSight System/Private Address Space Zones/RFC1918: 192.168.0.0-192.168.255.255"],
+      ["amac", "00-0C-29-51-8A-84"],
+      ["av", "7.6.0.8009.0"],
+      ["atz", "Europe/Lisbon"],
+      ["at", "syslog_file"],
+      ["dvchost", "client1"],
+      ["dtz", "Europe/Moscow"],
+      ["_cefVer", "0.1"],
+      ["aid", "3UBajWl0BABCABBzZSlmUdw=="]
+    ]
+  },
+  {
+    "name": "cef_spec.rb:728 empty value",
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|Very-High| eventId=1 msg=Worm successfully stopped start=",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "Very-High"],
+    "pairs": [
+      ["eventId", "1"],
+      ["msg", "Worm successfully stopped"],
+      ["start", ""]
+    ]
+  },
+  {
+    "name": "cef_spec.rb:745 unescaped equal sign in a value",
+    "line": "CEF:0|FooBar|Web Gateway|1.2.3.45.67|200|Success|2|rt=Sep 07 2018 14:50:39 cat=Access Log dst=1.1.1.1 dhost=foo.example.com suser=redacted src=2.2.2.2 requestMethod=POST request='https://foo.example.com/bar/bingo/1' requestClientApplication='Foo-Bar/2018.1.7; Email:user@example.com; Guid:test=' cs1= cs1Label=Foo Bar",
+    "version": 0,
+    "header": ["FooBar", "Web Gateway", "1.2.3.45.67", "200", "Success", "2"],
+    "pairs": [
+      ["rt", "Sep 07 2018 14:50:39"],
+      ["cat", "Access Log"],
+      ["dst", "1.1.1.1"],
+      ["dhost", "foo.example.com"],
+      ["suser", "redacted"],
+      ["src", "2.2.2.2"],
+      ["requestMethod", "POST"],
+      ["request", "'https://foo.example.com/bar/bingo/1'"],
+      ["requestClientApplication", "'Foo-Bar/2018.1.7; Email:user@example.com; Guid:test='"],
+      ["cs1", ""],
+      ["cs1Label", "Foo Bar"]
+    ]
+  },
+  {
+    "name": "cef_spec.rb:783 escaped equal signs and spaces in a value",
+    "line": "CEF:0|security|threatmanager|1.0|100|trojan successfully stopped|10|go=start now query_string=key1\\=value1&key2\\=value3 aa.bc&key3\\=value4 final=done",
+    "version": 0,
+    "header": ["security", "threatmanager", "1.0", "100", "trojan successfully stopped", "10"],
+    "pairs": [
+      ["go", "start now"],
+      ["query_string", "key1=value1&key2=value3 aa.bc&key3=value4"],
+      ["final", "done"]
+    ]
+  },
+  {
+    "name": "cef_spec.rb:793 escaped backslash in the headers",
+    "line": "CEF:0|secu\\\\rity|threat\\\\manager|1.\\\\0|10\\\\0|tro\\\\jan successfully stopped|\\\\10|",
+    "version": 0,
+    "header": ["secu\\rity", "threat\\manager", "1.\\0", "10\\0", "tro\\jan successfully stopped", "\\10"]
+  },
+  {
+    "name": "cef_spec.rb:806 escaped backslash before an escaped pipe in the headers",
+    "line": "CEF:0|security\\\\\\||threatmanager\\\\|1.0|100|trojan successfully stopped|10|",
+    "version": 0,
+    "header": ["security\\|", "threatmanager\\", "1.0", "100", "trojan successfully stopped", "10"]
+  },
+  {
+    "name": "cef_spec.rb:815 escaped pipes in the headers",
+    "line": "CEF:0|secu\\|rity|threatmanager\\||1.\\|0|10\\|0|tro\\|jan successfully stopped|\\|10|",
+    "version": 0,
+    "header": ["secu|rity", "threatmanager|", "1.|0", "10|0", "tro|jan successfully stopped", "|10"]
+  },
+  {
+    "name": "cef_spec.rb:828 backslashes in a value",
+    "line": "CEF:0|security|threatmanager|1.0|100|trojan successfully stopped|10|moo=this \\has \\ backslashs\\",
+    "version": 0,
+    "header": ["security", "threatmanager", "1.0", "100", "trojan successfully stopped", "10"],
+    "pairs": [
+      ["moo", "this \\has \\ backslashs\\"]
+    ]
+  },
+  {
+    "name": "cef_spec.rb:835 equal sign in the headers",
+    "line": "CEF:0|security|threatmanager=equal|1.0|100|trojan successfully stopped|10|",
+    "version": 0,
+    "header": ["security", "threatmanager=equal", "1.0", "100", "trojan successfully stopped", "10"]
+  },
+  {
+    "name": "cef_spec.rb:843 two spaces between pairs",
+    "line": "CEF:0|security|threatmanager|1.0|100|trojan successfully stopped|10| src=10.0.0.192  dst=12.121.122.82  spt=1232",
+    "version": 0,
+    "header": ["security", "threatmanager", "1.0", "100", "trojan successfully stopped", "10"],
+    "pairs": [
+      ["src", "10.0.0.192 "],
+      ["dst", "12.121.122.82 "],
+      ["spt", "1232"]
+    ]
+  },
+  {
+    "name": "cef_spec.rb:853 dots in keys",
+    "line": "CEF:0|Vendor|Device|Version|13|my message|5|dvchost=loghost cat=traffic deviceSeverity=notice ad.nn=TEST src=192.168.0.1 destinationPort=53",
+    "version": 0,
+    "header": ["Vendor", "Device", "Version", "13", "my message", "5"],
+    "pairs": [
+      ["dvchost", "loghost"],
+      ["cat", "traffic"],
+      ["deviceSeverity", "notice"],
+      ["ad.nn", "TEST"],
+      ["src", "192.168.0.1"],
+      ["destinationPort", "53"]
+    ]
+  },
+  {
+    "name": "cef_spec.rb:863 spaces in values",
+    "line": "CEF:0|security|threatmanager|1.0|100|trojan successfully stopped|10|src=10.0.0.192 dst=12.121.122.82  spt=1232 dproc=InternetExplorer x.x.x.x",
+    "version": 0,
+    "header": ["security", "threatmanager", "1.0", "100", "trojan successfully stopped", "10"],
+    "pairs": [
+      ["src", "10.0.0.192"],
+      ["dst", "12.121.122.82 "],
+      ["spt", "1232"],
+      ["dproc", "InternetExplorer x.x.x.x"]
+    ]
+  },
+  {
+    "name": "cef_spec.rb:874 ad. keys",
+    "line": "CEF:0|security|threatmanager|1.0|100|trojan successfully stopped|10|src=10.0.0.192 additional.dotfieldName=new_value ad.Authentification=MICROSOFT_AUTHENTICATION_PACKAGE_V1_0 ad.Error_,Code=3221225578 dst=12.121.122.82 ad.field[0]=field0 ad.name[1]=new_name",
+    "version": 0,
+    "header": ["security", "threatmanager", "1.0", "100", "trojan successfully stopped", "10"],
+    "pairs": [
+      ["src", "10.0.0.192"],
+      ["additional.dotfieldName", "new_value"],
+      ["ad.Authentification", "MICROSOFT_AUTHENTICATION_PACKAGE_V1_0 ad.Error_,Code=3221225578"],
+      ["dst", "12.121.122.82"],
+      ["ad.field[0]", "field0"],
+      ["ad.name[1]", "new_name"]
+    ]
+  },
+  {
+    "name": "cef_spec.rb:888 ad. keys with several dots",
+    "line": "CEF:0|security|threatmanager|1.0|100|trojan successfully stopped|10|src=10.0.0.192 additional.dotfieldName=new_value ad.Authentification=MICROSOFT_AUTHENTICATION_PACKAGE_V1_0 ad.Error_,Code=3221225578 dst=12.121.122.82 ad.field[0]=field0 ad.foo.name[1]=new_name",
+    "version": 0,
+    "header": ["security", "threatmanager", "1.0", "100", "trojan successfully stopped", "10"],
+    "pairs": [
+      ["src", "10.0.0.192"],
+      ["additional.dotfieldName", "new_value"],
+      ["ad.Authentification", "MICROSOFT_AUTHENTICATION_PACKAGE_V1_0 ad.Error_,Code=3221225578"],
+      ["dst", "12.121.122.82"],
+      ["ad.field[0]", "field0"],
+      ["ad.foo.name[1]", "new_name"]
+    ]
+  },
+  {
+    "name": "cef_spec.rb:902 spaces and escaped equal signs before ad. keys",
+    "line": "CEF:0|security|threatmanager|1.0|100|trojan successfully stopped|10|src=10.0.0.192 cs4=401 random.user Admin 0 23041A10181C0000  23041810181C0000  /CN\\=random.user/OU\\=User Login End-Entity  /CN\\=TEST/OU\\=Login CA TEST 34 additional.dotfieldName=new_value ad.Authentification=MICROSOFT_AUTHENTICATION_PACKAGE_V1_0 ad.Error_,Code=3221225578 dst=12.121.122.82 ad.field[0]=field0 ad.name[1]=new_name",
+    "version": 0,
+    "header": ["security", "threatmanager", "1.0", "100", "trojan successfully stopped", "10"],
+    "pairs": [
+      ["src", "10.0.0.192"],
+      ["cs4", "401 random.user Admin 0 23041A10181C0000  23041810181C0000  /CN=random.user/OU=User Login End-Entity  /CN=TEST/OU=Login CA TEST 34"],
+      ["additional.dotfieldName", "new_value"],
+      ["ad.Authentification", "MICROSOFT_AUTHENTICATION_PACKAGE_V1_0 ad.Error_,Code=3221225578"],
+      ["dst", "12.121.122.82"],
+      ["ad.field[0]", "field0"],
+      ["ad.name[1]", "new_name"]
+    ]
+  },
+  {
+    "name": "cef_spec.rb:917 unknown key",
+    "line": "CEF:0|security|threatmanager|1.0|100|trojan successfully stopped|10|src=10.0.0.192 dst=12.121.122.82 new_key_by_device=new_values here",
+    "version": 0,
+    "header": ["security", "threatmanager", "1.0", "100", "trojan successfully stopped", "10"],
+    "pairs": [
+      ["src", "10.0.0.192"],
+      ["dst", "12.121.122.82"],
+      ["new_key_by_device", "new_values here"]
+    ]
+  },
+  {
+    "name": "cef_spec.rb:927 abbreviated keys",
+    "line": "CEF:0|security|threatmanager|1.0|100|trojan successfully stopped|10|src=10.0.0.192 dst=12.121.122.82 proto=TCP shost=source.host.name dhost=destination.host.name spt=11024 dpt=9200 outcome=Success amac=00:80:48:1c:24:91",
+    "version": 0,
+    "header": ["security", "threatmanager", "1.0", "100", "trojan successfully stopped", "10"],
+    "pairs": [
+      ["src", "10.0.0.192"],
+      ["dst", "12.121.122.82"],
+      ["proto", "TCP"],
+      ["shost", "source.host.name"],
+      ["dhost", "destination.host.name"],
+      ["spt", "11024"],
+      ["dpt", "9200"],
+      ["outcome", "Success"],
+      ["amac", "00:80:48:1c:24:91"]
+    ]
+  },
+  {
+    "name": "cef_spec.rb:943 syslog prefix",
+    "line": "Syslogdate Sysloghost CEF:0|security|threatmanager|1.0|100|trojan successfully stopped|10|src=10.0.0.192 dst=12.121.122.82 spt=1232",
+    "fault": "ErrPrefix",
+    "version": 0,
+    "header": ["", "", "", "", "", ""]
+  },
+  {
+    "name": "cef_spec.rb:951 syslog prefix and fileHash",
+    "line": "Syslogdate Sysloghost CEF:0|security|threatmanager|1.0|100|trojan successfully stopped|10|fileHash=1bad1dea",
+    "fault": "ErrPrefix",
+    "version": 0,
+    "header": ["", "", "", "", "", ""]
+  },
+  {
+    "name": "cef_spec.rb:959 syslog prefix and numbered custom keys",
+    "line": "Syslogdate Sysloghost CEF:0|security|threatmanager|1.0|100|trojan successfully stopped|10|cfp15=3.1415926 cfp15Label=pi c6a12=::1 c6a12Label=localhost cn7=8191 cn7Label=mersenne cs4=silly cs4Label=theory",
+    "fault": "ErrPrefix",
+    "version": 0,
+    "header": ["", "", "", "", "", ""]
+  },
+  {
+    "name": "cef_spec.rb:985 UTF-8 value",
+    "line": "CEF:0|security|threatmanager|1.0|100|trojan successfully stopped|10|src=192.168.1.11 target=aaaaaああああaaaa msg=Description Omitted",
+    "version": 0,
+    "header": ["security", "threatmanager", "1.0", "100", "trojan successfully stopped", "10"],
+    "pairs": [
+      ["src", "192.168.1.11"],
+      ["target", "aaaaaああああaaaa"],
+      ["msg", "Description Omitted"]
+    ]
+  },
+  {
+    "name": "cef_spec.rb:1025 alias keys",
+    "line": "CEF:0|security|threatmanager|1.0|100|target acquired|10|destinationLongitude=-73.614830 destinationLatitude=45.505918 sourceLongitude=45.4628328 sourceLatitude=9.1076927",
+    "version": 0,
+    "header": ["security", "threatmanager", "1.0", "100", "target acquired", "10"],
+    "pairs": [
+      ["destinationLongitude", "-73.614830"],
+      ["destinationLatitude", "45.505918"],
+      ["sourceLongitude", "45.4628328"],
+      ["sourceLatitude", "9.1076927"]
+    ]
+  }
+]

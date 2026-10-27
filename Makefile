@@ -1,48 +1,129 @@
-.PHONY: all test bench fuzz lint clean vet cover ci pgo
+GO            ?= go
+GOLANGCI_LINT ?= GOTOOLCHAIN=go1.27.3 $(GO) run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0
+GOVULNCHECK   ?= $(GO) run golang.org/x/vuln/cmd/govulncheck@v1.8.0
+DEADCODE      ?= $(GO) run golang.org/x/tools/cmd/deadcode@v0.50.0
+FUZZTIME      ?= 30s
+FUZZ_TARGETS  ?=
+# FUZZ_GO runs the fuzzer of Go 1.27, which ends a FUZZTIME run without a
+# spurious "context deadline exceeded" failure.
+FUZZ_GO       ?= GOTOOLCHAIN=go1.27.3 $(GO)
+NILAWAY       ?= $(GO) run go.uber.org/nilaway/cmd/nilaway@v0.0.0-20260918162853-acb8859b9031
+TESTTIME_MAX  ?= 10
+RACECOUNT     ?= 10
+FINAL_FUZZTIME ?= 60s
+# FUZZ_LIST prints pkg:Target for every fuzz target go test lists in the module.
+FUZZ_LIST      = mod=$$($(GO) list -m) && out=$$($(GO) test -list='^Fuzz' ./...) && \
+	printf '%s\n' "$$out" | awk -v mod="$$mod" '/^Fuzz/ {name[n++] = $$1} /^ok/ { \
+		pkg = substr($$2, length(mod) + 2); if (pkg == "") pkg = "."; \
+		for (i = 0; i < n; i++) print pkg ":" name[i]; n = 0 }'
+# SLOW_TESTS selects the passing tests of testtime.json slower than TESTTIME_MAX.
+SLOW_TESTS     = select(.Action == "pass" and .Test != null and .Elapsed > $(TESTTIME_MAX)) | \
+	"\(.Package) \(.Test) \(.Elapsed)s"
 
-all: vet test bench
+.DEFAULT_GOAL := help
 
-# CI pipeline: vet + lint + test + coverage + benchmarks.
-ci: vet lint test cover bench
+.PHONY: help ci modcheck vet lint fmt deadcode test test386 race cover bench bench-smoke vuln fuzz \
+	fuzz-list testtime final fmtcheck nilaway race-repeat fuzz-final treecheck clean
 
-# Run all tests with verbose output and race detector.
-test:
-	go test -v -race -count=1 ./...
+help: ## List the targets
+	@awk 'BEGIN {FS = ":.*## "} /^[a-z0-9-]+:.*## / {printf "  %-14s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
-# Run benchmarks.
-bench:
-	go test -bench=. -benchmem -count=6 ./...
+ci: modcheck vet lint vuln deadcode test test386 race bench-smoke cover ## Run every gate of the CI workflows but CodeQL and fuzzing
 
-# Run fuzzing for 30 seconds (increase for thorough testing).
-fuzz:
-	go test -fuzz=FuzzParse -fuzztime=30s ./...
+modcheck: ## Download and verify the modules; fail when go.mod or go.sum is not tidy
+	$(GO) mod download
+	$(GO) mod verify
+	$(GO) mod tidy -diff
 
-# Run go vet.
-vet:
-	go vet ./...
+vet: ## Run go vet
+	$(GO) vet ./...
 
-# Run staticcheck and golangci-lint if available.
-lint:
-	@if command -v staticcheck >/dev/null 2>&1; then staticcheck ./...; else echo "staticcheck not installed, skipping"; fi
-	@if command -v golangci-lint >/dev/null 2>&1; then golangci-lint run ./...; else echo "golangci-lint not installed, skipping"; fi
+lint: ## Run golangci-lint with .golangci.yml
+	$(GOLANGCI_LINT) run ./...
 
-# Regenerate the PGO profile from all benchmarks and replace default.pgo.
-# Run this before building for production to give the compiler accurate hot-path data.
-pgo:
-	go test -run='^$$' -bench=. -benchmem -count=5 \
-		-cpuprofile=cpu.prof .
-	go tool pprof -proto cpu.prof > default.pgo
-	@rm -f cpu.prof
-	@echo "default.pgo updated — rebuild with: go build -pgo=auto ./..."
+fmt: ## Format the code with the formatters of .golangci.yml
+	$(GOLANGCI_LINT) fmt ./...
 
-# Clean test cache and generated files.
-clean:
-	go clean -testcache
-	@rm -f coverage.out coverage.html
+deadcode: ## Fail on any function deadcode -test finds unreachable
+	@out=$$($(DEADCODE) -test ./...) && [ -z "$$out" ] || { echo "$$out"; exit 1; }
 
-# Show test coverage.
-cover:
-	go test -coverprofile=coverage.out ./...
-	go tool cover -html=coverage.out -o coverage.html
-	@go tool cover -func=coverage.out | tail -1
-	@echo "Coverage report: coverage.html"
+test: ## Run the tests, allocation counts included
+	$(GO) test -count=1 -shuffle=on ./...
+
+test386: ## Run the tests of the 32-bit build, allocation counts included
+	GOARCH=386 $(GO) test -count=1 -shuffle=on ./...
+
+race: ## Run the tests with the race detector and write coverage.out
+	CGO_ENABLED=1 $(GO) test -race -count=1 -shuffle=on -coverprofile=coverage.out -covermode=atomic ./...
+
+cover: race ## Write coverage.html from the race run; fail when statement coverage is below 100%
+	$(GO) tool cover -html=coverage.out -o coverage.html
+	@$(GO) tool cover -func=coverage.out | awk '$$1 == "total:"'
+	@awk 'NR > 1 && $$2 > 0 && $$3 == 0 {print "not covered:", $$1; missed = 1} END {exit missed}' coverage.out
+
+bench: ## Run every benchmark
+	$(GO) test -run='^$$' -bench=. -benchmem ./...
+
+bench-smoke: ## Run every benchmark 100 times
+	$(GO) test -run='^$$' -bench=. -benchtime=100x ./...
+
+vuln: ## Scan the module and the toolchain with govulncheck
+	$(GOVULNCHECK) ./...
+
+testtime: ## Fail on any test slower than TESTTIME_MAX seconds in a serial race run (outside ci)
+	CGO_ENABLED=1 $(GO) test -race -count=1 -p 1 -parallel 1 -json ./... > testtime.json
+	@slow=$$(jq -r '$(SLOW_TESTS)' testtime.json) && [ -z "$$slow" ] || { echo "$$slow"; exit 1; }
+
+final: ## Run the delivery gates one after another on an idle machine
+	@for gate in fmtcheck nilaway race-repeat fuzz-final treecheck; do \
+		$(MAKE) $$gate || exit 1; \
+	done
+
+fmtcheck: ## Fail when gofmt -s would change a file
+	@out=$$("$$($(GO) env GOROOT)/bin/gofmt" -s -l .) && [ -z "$$out" ] || { echo "$$out"; exit 1; }
+
+nilaway: ## Fail on any nil flow nilaway finds in the module
+	$(NILAWAY) -include-pkgs=$$($(GO) list -m) ./...
+
+race-repeat: ## Run the tests RACECOUNT times with the race detector
+	CGO_ENABLED=1 $(GO) test -race -count=$(RACECOUNT) -shuffle=on ./...
+
+fuzz-final: ## Run every fuzz target for FINAL_FUZZTIME
+	$(MAKE) fuzz FUZZTIME=$(FINAL_FUZZTIME)
+
+treecheck: clean ## Fail on an artefact, an untracked non-source file, a fuzz corpus file, an empty directory or a non-LF file
+	@out=$$(git status --porcelain=v1 --ignored --untracked-files=all | sed -n 's/^\(??\|!!\) //p' | \
+		awk -v cmds="$$(ls cmd 2>/dev/null)" 'BEGIN { n = split(cmds, c, " "); for (i = 1; i <= n; i++) cmd[c[i]] = 1 }; \
+		{ n = split($$0, p, "/"); b = p[n] }; \
+		b ~ /\.(out|prof|pprof|test|exe|tmp|bak|orig|rej)$$|~$$|^coverage.*\.html$$/ || (b in cmd) { print; next }; \
+		$$0 == ".env" || $$0 ~ /^\.(idea|vscode)\// || $$0 ~ /(^|\/)testdata\// { next }; \
+		b ~ /\.(go|md|yml|yaml|json)$$/ { next }; \
+		b ~ /^(go\.mod|go\.sum|LICENSE|Makefile|Dockerfile|\.gitignore|\.gitattributes|\.dockerignore)$$/ { next }; \
+		b ~ /^\.env\.example$$/ { next }; { print }') && [ -z "$$out" ] || \
+		{ echo "treecheck: artefacts or untracked files of no source kind:"; echo "$$out"; exit 1; }
+	@out=$$(find . -path ./.git -prune -o -type d -empty -print) && [ -z "$$out" ] || \
+		{ echo "treecheck: empty directories:"; echo "$$out"; exit 1; }
+	@out=$$(git ls-files --eol --cached --others --exclude-standard | awk '$$2 != "w/" && \
+		($$1 !~ /^i\/(lf|-text|none)?$$/ || $$2 !~ /^w\/(lf|-text|none)$$/)') && [ -z "$$out" ] || \
+		{ echo "treecheck: files not stored with LF (git add --renormalize . fixes the index):"; echo "$$out"; exit 1; }
+	@grep -qx '\* text=auto eol=lf' .gitattributes || { echo "treecheck: .gitattributes lacks * text=auto eol=lf"; exit 1; }
+	@out=$$(find testdata -path 'testdata/fuzz/*' -type f 2>/dev/null) && [ -z "$$out" ] || \
+		{ echo "treecheck: files of the fuzzing engine under testdata/fuzz (a crasher is an f.Add seed):"; echo "$$out"; exit 1; }
+
+fuzz: ## Run every fuzz target, or the pkg:Target list FUZZ_TARGETS, for FUZZTIME each
+	@targets='$(FUZZ_TARGETS)'; [ -n "$$targets" ] || targets=$$($(FUZZ_LIST)) || exit 1; \
+	for spec in $$targets; do \
+		pkg=$${spec%%:*}; name=$${spec#*:}; \
+		$(GO) test -list='^Fuzz' ./$$pkg | grep -qx "$$name" || \
+			{ echo "fuzz: ./$$pkg has no fuzz target $$name" >&2; exit 1; }; \
+		$(FUZZ_GO) test -run='^$$' -fuzz="^$$name\$$" -fuzztime=$(FUZZTIME) ./$$pkg || exit 1; \
+	done
+
+fuzz-list: ## Print every fuzz target as the JSON array the fuzz workflow reads; fail when there is none
+	@targets=$$($(FUZZ_LIST)) || exit 1; [ -n "$$targets" ] || { echo "fuzz-list: no fuzz target" >&2; exit 1; }; \
+	sep=; printf '['; for spec in $$targets; do \
+		printf '%s{"pkg":"%s","target":"%s"}' "$$sep" "$${spec%%:*}" "$${spec#*:}"; sep=,; \
+	done; printf ']\n'
+
+clean: ## Remove the test binaries, profiles, traces, coverage reports and testtime.json
+	rm -f *.test *.out *.prof *.pprof *.trace coverage.html testtime.json

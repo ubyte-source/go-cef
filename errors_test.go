@@ -2,217 +2,153 @@ package cef
 
 import (
 	"errors"
-	"math"
+	"fmt"
+	"strconv"
+	"strings"
 	"testing"
 )
 
-func TestErrorsIs(t *testing.T) {
-	tests := []struct {
-		want  error
-		name  string
-		input string
+// sentinels returns every sentinel of the package with its documented text.
+func sentinels() []struct {
+	err  error
+	text string
+} {
+	return []struct {
+		err  error
+		text string
 	}{
-		{ErrEmpty, "empty", ""},
-		{ErrPrefix, "bad_prefix", "NOTCEF:0|a|b|c|d|e|5|"},
-		{ErrVersion, "bad_version", "CEF:abc|V|P|1|100|N|5|"},
-		{ErrIncompleteHeader, "incomplete", "CEF:0|Vendor|Product"},
+		{ErrEmpty, "cef: empty input"},
+		{ErrPrefix, "cef: expecting CEF: prefix"},
+		{ErrVersion, "cef: version is not 1 to 4 digits without a leading zero"},
+		{ErrIncompleteHeader, "cef: incomplete CEF header"},
+		{ErrExtKey, "cef: invalid extension key"},
+		{ErrExtOverflow, "cef: extension count exceeds maximum"},
+		{ErrInputTooLarge, "cef: input longer than 4294967295 bytes"},
+		{ErrInvalidUTF8, "cef: event text is not UTF-8"},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			m := NewParser()
-			_, err := m.Parse([]byte(tt.input))
-			if err == nil {
-				t.Fatal("expected error")
+}
+
+func TestConstErrorErrorTexts(t *testing.T) {
+	for _, s := range sentinels() {
+		if got := s.err.Error(); got != s.text {
+			t.Errorf("sentinel text = %q, want %q", got, s.text)
+		}
+	}
+}
+
+func TestParseErrorErrorNamesTheOffset(t *testing.T) {
+	for _, tc := range []struct {
+		pos  uint32
+		want string
+	}{
+		{0, "cef: incomplete CEF header at byte 0"},
+		{19, "cef: incomplete CEF header at byte 19"},
+		{4294967295, "cef: incomplete CEF header at byte 4294967295"},
+	} {
+		pe := &ParseError{Err: ErrIncompleteHeader, Position: tc.pos}
+		if got := pe.Error(); got != tc.want {
+			t.Errorf("Error() = %q, want %q", got, tc.want)
+		}
+	}
+}
+
+func TestParseErrorUnwrapMatchesTheSentinel(t *testing.T) {
+	for _, s := range sentinels() {
+		var err error = &ParseError{Err: s.err, Position: 7}
+		if !errors.Is(err, s.err) {
+			t.Errorf("errors.Is(ParseError{%v}, %v) = false, want true", s.err, s.err)
+		}
+		if got := errors.Unwrap(err); !errors.Is(got, s.err) || errors.Unwrap(got) != nil {
+			t.Errorf("Unwrap() = %v, want %v", got, s.err)
+		}
+		for _, other := range sentinels() {
+			if other.text != s.text && errors.Is(err, other.err) {
+				t.Errorf("errors.Is(ParseError{%v}, %v) = true, want false", s.err, other.err)
 			}
-			if !errors.Is(err, tt.want) {
-				t.Errorf("errors.Is(%v, %v) = false", err, tt.want)
-			}
-		})
-	}
-}
-
-func TestErrorsIsExtOverflow(t *testing.T) {
-	m := NewParser(WithMaxExtensions(1))
-	_, err := m.Parse([]byte(`CEF:0|V|P|1|100|N|5|a=1 b=2`))
-	if err == nil {
-		t.Fatal("expected error")
-	}
-	if !errors.Is(err, ErrExtOverflow) {
-		t.Errorf("errors.Is(%v, ErrExtOverflow) = false", err)
-	}
-}
-
-func TestErrorsIsExtKey(t *testing.T) {
-	m := NewParser()
-	_, err := m.Parse([]byte("CEF:0|V|P|1|100|N|5|bad key=val"))
-	if err == nil {
-		t.Skip("parser did not produce ErrExtKey for this input")
-	}
-	if !errors.Is(err, ErrExtKey) {
-		t.Errorf("expected ErrExtKey, got: %v", err)
-	}
-}
-
-func TestWithMaxExtensionsPanicZero(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Fatal("expected panic for n=0")
-		}
-	}()
-	WithMaxExtensions(0)
-}
-
-func TestWithMaxExtensionsPanicNegative(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Fatal("expected panic for n=-1")
-		}
-	}()
-	WithMaxExtensions(-1)
-}
-
-func TestWithMaxExtensionsPanicOver64(t *testing.T) {
-	defer func() {
-		if r := recover(); r == nil {
-			t.Fatal("expected panic for n=65")
-		}
-	}()
-	WithMaxExtensions(65)
-}
-
-func TestWithMaxExtensionsValidBounds(t *testing.T) {
-	for _, n := range []int{1, 32, 64} {
-		p := NewParser(WithMaxExtensions(n))
-		if p == nil {
-			t.Fatalf("NewParser(WithMaxExtensions(%d)) returned nil", n)
 		}
 	}
 }
 
-func TestParseErrorPosition(t *testing.T) {
-	m := NewParser()
-	_, err := m.Parse([]byte(`CEF:0|Vendor|Product`))
-	if err == nil {
-		t.Fatal("expected error")
+func TestParseErrorAllocs(t *testing.T) {
+	pe := &ParseError{Err: ErrExtKey, Position: 4294967295}
+	var text string
+	var err error
+	assertAllocs(t, 1, func() { text = pe.Error() })
+	assertAllocs(t, 0, func() { err = pe.Unwrap() })
+	if text != "cef: invalid extension key at byte 4294967295" || !errors.Is(err, ErrExtKey) {
+		t.Errorf("Error() = %q, Unwrap() = %v, want the text and ErrExtKey", text, err)
 	}
-	var pe *ParseError
-	if errors.As(err, &pe) {
-		if pe.Position == 0 && !errors.Is(err, ErrEmpty) {
-			t.Errorf("expected non-zero position for non-empty input, got %d", pe.Position)
+}
+
+func TestFaultIsFreshPerCall(t *testing.T) {
+	a, b := fault(3, ErrExtKey), fault(3, ErrExtKey)
+	pa, pb := asParseError(a), asParseError(b)
+	if pa == nil || pb == nil || pa == pb {
+		t.Fatalf("fault(3, ErrExtKey) twice = %p and %p, want a fresh *ParseError per call", pa, pb)
+	}
+	if pa.Position != 3 || !errors.Is(a, ErrExtKey) {
+		t.Errorf("fault(3, ErrExtKey) = %v, want ErrExtKey at byte 3", a)
+	}
+}
+
+func FuzzParseErrorError(f *testing.F) {
+	f.Add(uint32(0), 0)
+	f.Add(uint32(4294967295), 7)
+	f.Fuzz(func(t *testing.T, pos uint32, which int) {
+		all := sentinels()
+		s := all[uint(which)%uint(len(all))]
+		pe := &ParseError{Err: s.err, Position: pos}
+		want := s.text + " at byte " + strconv.FormatUint(uint64(pos), 10)
+		if got := pe.Error(); got != want {
+			t.Fatalf("Error() = %q, want %q", got, want)
 		}
-	} else {
-		t.Error("expected ParseError type")
-	}
-}
-
-func TestParseErrorIndependent(t *testing.T) {
-	m := NewParser()
-
-	_, err1 := m.Parse([]byte{})
-	if err1 == nil {
-		t.Fatal("expected error")
-	}
-	msg1 := err1.Error()
-	if !errors.Is(err1, ErrEmpty) {
-		t.Errorf("err1: expected ErrEmpty, got: %v", err1)
-	}
-
-	// A second Parse must NOT mutate the previously returned error: each Parse
-	// returns an independent *ParseError.
-	_, err2 := m.Parse([]byte(`NOTCEF`))
-	if err2 == nil {
-		t.Fatal("expected error")
-	}
-	if !errors.Is(err2, ErrPrefix) {
-		t.Errorf("err2: expected ErrPrefix, got: %v", err2)
-	}
-
-	// err1 is unchanged: same message, still matches its sentinel.
-	if got := err1.Error(); got != msg1 {
-		t.Errorf("err1 mutated by second Parse: was %q, now %q", msg1, got)
-	}
-	if !errors.Is(err1, ErrEmpty) {
-		t.Errorf("err1 no longer matches ErrEmpty after second Parse: %v", err1)
-	}
-
-	// The two errors are distinct values (no shared pointer).
-	var pe1, pe2 *ParseError
-	if !errors.As(err1, &pe1) {
-		t.Fatal("err1 is not *ParseError")
-	}
-	if !errors.As(err2, &pe2) {
-		t.Fatal("err2 is not *ParseError")
-	}
-	if pe1 == pe2 {
-		t.Error("expected err1 and err2 to be independent *ParseError values")
-	}
-}
-
-func TestParseErrorsCollectable(t *testing.T) {
-	// The common "parse many lines, collect failures" pattern must preserve
-	// each error's identity.
-	m := NewParser()
-	inputs := [][]byte{{}, []byte("NOTCEF"), []byte("CEF:0|V|P")}
-	wantErr := []error{ErrEmpty, ErrPrefix, ErrIncompleteHeader}
-	var collected []error
-	for _, in := range inputs {
-		if _, err := m.Parse(in); err != nil {
-			collected = append(collected, err)
+		if !errors.Is(pe, s.err) || !errors.Is(pe.Unwrap(), s.err) {
+			t.Fatalf("ParseError{%v}: Is = %t, Unwrap() = %v, want true and %v", s.err, errors.Is(pe, s.err),
+				pe.Unwrap(), s.err)
 		}
-	}
-	if len(collected) != len(wantErr) {
-		t.Fatalf("collected %d errors, want %d", len(collected), len(wantErr))
-	}
-	for i, want := range wantErr {
-		if !errors.Is(collected[i], want) {
-			t.Errorf("collected[%d] = %v, want match for %v", i, collected[i], want)
+		if !strings.HasPrefix(pe.Error(), "cef: ") {
+			t.Fatalf("Error() = %q, want the prefix %q", pe.Error(), "cef: ")
 		}
+	})
+}
+
+func BenchmarkParseErrorError(b *testing.B) {
+	pe := &ParseError{Err: ErrIncompleteHeader, Position: 19}
+	if got := pe.Error(); got != "cef: incomplete CEF header at byte 19" {
+		b.Fatalf("Error() = %q, want the documented text", got)
+	}
+	out := heapCell[string](b)
+	b.ReportAllocs()
+	for b.Loop() {
+		*out = pe.Error()
 	}
 }
 
-func TestErrInputTooLarge(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping: requires >4 GiB memory allocation")
+func BenchmarkParseErrorUnwrap(b *testing.B) {
+	pe := &ParseError{Err: ErrIncompleteHeader, Position: 19}
+	if !errors.Is(pe.Unwrap(), ErrIncompleteHeader) {
+		b.Fatalf("Unwrap() = %v, want %v", pe.Unwrap(), ErrIncompleteHeader)
 	}
-	// Use a uint64 variable so the value never appears as an out-of-range int
-	// constant: int(math.MaxUint32)+1 would fail to compile on 32-bit targets.
-	var want uint64 = math.MaxUint32 + 1
-	if uint64(math.MaxInt) < want {
-		t.Skip("skipping: platform int cannot represent >4 GiB")
-	}
-	size := int(want)
-	input := make([]byte, size)
-	copy(input, "CEF:0|V|P|1|100|N|5|")
-	m := NewParser()
-	_, err := m.Parse(input)
-	if err == nil {
-		t.Fatal("expected error for input > MaxUint32")
-	}
-	if !errors.Is(err, ErrInputTooLarge) {
-		t.Errorf("expected ErrInputTooLarge, got: %v", err)
+	out := heapCell[error](b)
+	b.ReportAllocs()
+	for b.Loop() {
+		*out = pe.Unwrap()
 	}
 }
 
-func TestErrInputTooLargeBestEffort(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping: requires >4 GiB memory allocation")
+func BenchmarkConstErrorError(b *testing.B) {
+	if ErrEmpty.Error() != "cef: empty input" {
+		b.Fatalf("ErrEmpty.Error() = %q, want %q", ErrEmpty.Error(), "cef: empty input")
 	}
-	var want uint64 = math.MaxUint32 + 1
-	if uint64(math.MaxInt) < want {
-		t.Skip("skipping: platform int cannot represent >4 GiB")
+	b.ReportAllocs()
+	for b.Loop() {
+		_ = ErrEmpty.Error()
 	}
-	size := int(want)
-	input := make([]byte, size)
-	copy(input, "CEF:0|V|P|1|100|N|5|")
-	m := NewParser(WithBestEffort())
-	e, err := m.Parse(input)
-	if err == nil {
-		t.Fatal("expected error")
-	}
-	if !errors.Is(err, ErrInputTooLarge) {
-		t.Errorf("expected ErrInputTooLarge, got: %v", err)
-	}
-	if e == nil {
-		t.Fatal("expected non-nil event in best-effort mode")
-	}
+}
+
+func ExampleParseError() {
+	var e Event
+	err := e.Parse([]byte("CEF:0|Vendor|Product"), MaxExtensions)
+	fmt.Println(err, errors.Is(err, ErrIncompleteHeader))
+	// Output: cef: incomplete CEF header at byte 20 true
 }

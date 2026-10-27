@@ -1,96 +1,231 @@
 package cef
 
-import "testing"
+import (
+	"fmt"
+	"strconv"
+	"strings"
+	"testing"
+)
 
-func TestSeverityNum(t *testing.T) {
-	tests := []struct {
-		sev    string
-		want   int
-		wantOK bool
+// severityTable is the severity classification written as literals: the field, and
+// the level name, the number and the validity SeverityLevel gives.
+func severityTable() []struct {
+	field string
+	name  string
+	num   int
+	ok    bool
+} {
+	return []struct {
+		field string
+		name  string
+		num   int
+		ok    bool
 	}{
-		{"0", 0, true}, {"1", 1, true}, {"2", 2, true}, {"3", 3, true},
-		{"4", 4, true}, {"5", 5, true}, {"6", 6, true}, {"7", 7, true},
-		{"8", 8, true}, {"9", 9, true}, {"10", 10, true},
-		{"Low", 3, true}, {"low", 3, true}, {"LOW", 3, true},
-		{"Medium", 6, true}, {"medium", 6, true}, {"MEDIUM", 6, true},
-		{"High", 8, true}, {"high", 8, true}, {"HIGH", 8, true},
-		{"Very-High", 10, true}, {"very-high", 10, true}, {"VERY-HIGH", 10, true},
-		{"Unknown", -1, true}, {"unknown", -1, true}, {"UNKNOWN", -1, true},
-		{"", 0, false}, {"invalid", 0, false}, {"11", 0, false}, {"abc", 0, false},
-		// Boundary cases (G5)
-		{"00", 0, false}, {"99", 0, false}, {"-1", 0, false}, {"100", 0, false},
-		{"01", 0, false}, {"1 ", 0, false}, {" 1", 0, false},
+		{"0", "Unknown", 0, true},
+		{"1", "Low", 1, true},
+		{"2", "Low", 2, true},
+		{"3", "Low", 3, true},
+		{"4", "Medium", 4, true},
+		{"5", "Medium", 5, true},
+		{"6", "Medium", 6, true},
+		{"7", "High", 7, true},
+		{"8", "High", 8, true},
+		{"9", "Very-High", 9, true},
+		{"10", "Very-High", 10, true},
+		{"Unknown", "Unknown", 0, true},
+		{"unknown", "Unknown", 0, true},
+		{"UNKNOWN", "Unknown", 0, true},
+		{"Low", "Low", 3, true},
+		{"lOw", "Low", 3, true},
+		{"Medium", "Medium", 6, true},
+		{"MEDIUM", "Medium", 6, true},
+		{"High", "High", 8, true},
+		{"high", "High", 8, true},
+		{"Very-High", "Very-High", 10, true},
+		{"very-high", "Very-High", 10, true},
+		{"VERY-HIGH", "Very-High", 10, true},
+		{"", "Unknown", 0, false},
+		{"x", "Unknown", 0, false},
+		{"/", "Unknown", 0, false},
+		{":", "Unknown", 0, false},
+		{"11", "Unknown", 0, false},
+		{"05", "Unknown", 0, false},
+		{"-1", "Unknown", 0, false},
+		{" 5", "Unknown", 0, false},
+		{"5 ", "Unknown", 0, false},
+		{"Very High", "Unknown", 0, false},
+		{"Very\rHigh", "Unknown", 0, false},
+		{"Very-Hig", "Unknown", 0, false},
+		{"Unknow", "Unknown", 0, false},
+		{"Hig", "Unknown", 0, false},
+		{"Lov", "Unknown", 0, false},
+		{"Medius", "Unknown", 0, false},
+		{"Critical", "Unknown", 0, false},
 	}
-	m := NewParser()
-	for _, tt := range tests {
-		t.Run(tt.sev, func(t *testing.T) {
-			input := []byte(`CEF:0|V|P|1|100|N|` + tt.sev + `|`)
-			e, err := m.Parse(input)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
+}
+
+func TestEventSeverityLevelClassifiesTheField(t *testing.T) {
+	for _, tc := range severityTable() {
+		var e Event
+		line := "CEF:0|V|P|1|C|N|" + tc.field + "|"
+		if err := e.Parse([]byte(line), MaxExtensions); err != nil {
+			t.Fatalf("Parse(%q) = %v, want nil", line, err)
+		}
+		level, num, ok := e.SeverityLevel()
+		if level.String() != tc.name || num != tc.num || ok != tc.ok {
+			t.Errorf("SeverityLevel() of %q = %v, %d, %t, want %s, %d, %t",
+				tc.field, level, num, ok, tc.name, tc.num, tc.ok)
+		}
+	}
+}
+
+func TestEventSeverityLevelOfTheZeroEvent(t *testing.T) {
+	var e Event
+	if level, num, ok := e.SeverityLevel(); level != LevelUnknown || num != 0 || ok {
+		t.Errorf("SeverityLevel() of the zero Event = %v, %d, %t, want Unknown, 0, false", level, num, ok)
+	}
+}
+
+func TestLevelStringNames(t *testing.T) {
+	for _, tc := range []struct {
+		level Level
+		want  string
+	}{
+		{LevelUnknown, "Unknown"},
+		{LevelLow, "Low"},
+		{LevelMedium, "Medium"},
+		{LevelHigh, "High"},
+		{LevelVeryHigh, "Very-High"},
+		{5, "Level(5)"},
+		{255, "Level(255)"},
+	} {
+		if got := tc.level.String(); got != tc.want {
+			t.Errorf("Level(%d).String() = %q, want %q", uint8(tc.level), got, tc.want)
+		}
+	}
+}
+
+func TestLevelConstantsAreOrdered(t *testing.T) {
+	for i, l := range []Level{LevelUnknown, LevelLow, LevelMedium, LevelHigh, LevelVeryHigh} {
+		if int(l) != i {
+			t.Errorf("level %v = %d, want %d", l, l, i)
+		}
+	}
+}
+
+func TestEventSeverityLevelAllocs(t *testing.T) {
+	var e Event
+	if err := e.Parse([]byte("CEF:0|V|P|1|C|N|Very-High|"), MaxExtensions); err != nil {
+		t.Fatalf("Parse = %v, want nil", err)
+	}
+	assertAllocs(t, 0, func() { _, _, _ = e.SeverityLevel() })
+	assertAllocs(t, 0, func() { _ = LevelVeryHigh.String() })
+	assertAllocs(t, 1, func() { _ = Level(200).String() })
+}
+
+// refSeverityLevel classifies a severity field by the documented table: the level name,
+// the number and the validity.
+func refSeverityLevel(field string) (name string, num int, ok bool) {
+	if n, err := strconv.Atoi(field); err == nil && n >= 0 && n <= 10 && strconv.Itoa(n) == field {
+		names := [...]string{"Unknown", "Low", "Low", "Low", "Medium", "Medium", "Medium", "High", "High",
+			"Very-High", "Very-High"}
+		return names[n], n, true
+	}
+	for _, named := range []struct {
+		name string
+		num  int
+	}{{"Unknown", 0}, {"Low", 3}, {"Medium", 6}, {"High", 8}, {"Very-High", 10}} {
+		if strings.EqualFold(field, named.name) && isASCII(field) {
+			return named.name, named.num, true
+		}
+	}
+	return "Unknown", 0, false
+}
+
+// isASCII reports whether s holds only ASCII bytes.
+func isASCII(s string) bool {
+	for i := range len(s) {
+		if s[i] >= 0x80 {
+			return false
+		}
+	}
+	return true
+}
+
+func FuzzEventSeverityLevel(f *testing.F) {
+	for _, tc := range severityTable() {
+		f.Add(tc.field)
+	}
+	f.Fuzz(func(t *testing.T, field string) {
+		if strings.ContainsAny(field, `|\`) {
+			return
+		}
+		var e Event
+		line := "CEF:0|V|P|1|C|N|" + field + "|"
+		if err := e.Parse([]byte(line), MaxExtensions); err != nil {
+			t.Fatalf("Parse(%q) = %v, want nil", line, err)
+		}
+		level, num, ok := e.SeverityLevel()
+		name, wantNum, wantOK := refSeverityLevel(field)
+		if level.String() != name || num != wantNum || ok != wantOK {
+			t.Fatalf("SeverityLevel() of %q = %v, %d, %t, want %s, %d, %t",
+				field, level, num, ok, name, wantNum, wantOK)
+		}
+	})
+}
+
+func FuzzLevelString(f *testing.F) {
+	f.Add(uint8(0))
+	f.Add(uint8(9))
+	f.Fuzz(func(t *testing.T, n uint8) {
+		names := [...]string{"Unknown", "Low", "Medium", "High", "Very-High"}
+		want := "Level(" + strconv.Itoa(int(n)) + ")"
+		if int(n) < len(names) {
+			want = names[n]
+		}
+		if got := Level(n).String(); got != want {
+			t.Fatalf("Level(%d).String() = %q, want %q", n, got, want)
+		}
+	})
+}
+
+func BenchmarkEventSeverityLevel(b *testing.B) {
+	for _, field := range []string{"7", "0", "High", "Very-High", "bogus"} {
+		b.Run(field, func(b *testing.B) {
+			var e Event
+			if err := e.Parse([]byte("CEF:0|V|P|1|C|N|"+field+"|"), MaxExtensions); err != nil {
+				b.Fatalf("Parse = %v, want nil", err)
 			}
-			got, ok := e.SeverityNum()
-			if got != tt.want || ok != tt.wantOK {
-				t.Errorf("SeverityNum(%q): got (%d, %v), want (%d, %v)", tt.sev, got, ok, tt.want, tt.wantOK)
+			name, num, ok := refSeverityLevel(field)
+			if level, n, valid := e.SeverityLevel(); level.String() != name || n != num || valid != ok {
+				b.Fatalf("SeverityLevel() = %v, %d, %t, want %s, %d, %t", level, n, valid, name, num, ok)
+			}
+			b.ReportAllocs()
+			for b.Loop() {
+				_, _, _ = e.SeverityLevel()
 			}
 		})
 	}
 }
 
-func TestSeverityLevel(t *testing.T) {
-	tests := []struct {
-		sev    string
-		want   string
-		wantOK bool
-	}{
-		{"0", SeverityLevelLow, true}, {"1", SeverityLevelLow, true},
-		{"2", SeverityLevelLow, true}, {"3", SeverityLevelLow, true},
-		{"4", SeverityLevelMedium, true}, {"5", SeverityLevelMedium, true},
-		{"6", SeverityLevelMedium, true},
-		{"7", SeverityLevelHigh, true}, {"8", SeverityLevelHigh, true},
-		{"9", SeverityLevelVeryHigh, true}, {"10", SeverityLevelVeryHigh, true},
-		{"Low", SeverityLevelLow, true}, {"Medium", SeverityLevelMedium, true},
-		{"High", SeverityLevelHigh, true},
-		{"Very-High", SeverityLevelVeryHigh, true}, {"Unknown", SeverityLevelUnknown, true},
-		{"low", SeverityLevelLow, true}, {"medium", SeverityLevelMedium, true},
-		{"high", SeverityLevelHigh, true},
-		{"", "", false}, {"invalid", "", false}, {"abc", "", false},
+func BenchmarkLevelString(b *testing.B) {
+	if LevelVeryHigh.String() != "Very-High" {
+		b.Fatalf("LevelVeryHigh.String() = %q, want %q", LevelVeryHigh, "Very-High")
 	}
-	m := NewParser()
-	for _, tt := range tests {
-		t.Run(tt.sev, func(t *testing.T) {
-			input := []byte(`CEF:0|V|P|1|100|N|` + tt.sev + `|`)
-			e, err := m.Parse(input)
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-			got, ok := e.SeverityLevel()
-			if got != tt.want || ok != tt.wantOK {
-				t.Errorf("SeverityLevel(%q): got (%q, %v), want (%q, %v)", tt.sev, got, ok, tt.want, tt.wantOK)
-			}
-		})
+	out := heapCell[string](b)
+	b.ReportAllocs()
+	for b.Loop() {
+		*out = LevelVeryHigh.String()
 	}
 }
 
-func TestSeverityNum_NilRaw(t *testing.T) {
-	e := &Event{}
-	got, ok := e.SeverityNum()
-	if got != 0 || ok {
-		t.Errorf("expected (0, false), got (%d, %v)", got, ok)
+func ExampleEvent_SeverityLevel() {
+	var e Event
+	if err := e.Parse([]byte("CEF:0|Vendor|Product|1.0|100|Name|very-high|"), MaxExtensions); err != nil {
+		fmt.Println(err)
+		return
 	}
-}
-
-func TestSeverityLevel_NilRaw(t *testing.T) {
-	e := &Event{}
-	got, ok := e.SeverityLevel()
-	if got != "" || ok {
-		t.Errorf("expected (\"\", false), got (%q, %v)", got, ok)
-	}
-}
-
-func TestNumToSeverityLevelNegative(t *testing.T) {
-	// Defensive branch: numToSeverityLevel with negative input.
-	if got := numToSeverityLevel(-1); got != "" {
-		t.Errorf("expected empty, got %q", got)
-	}
+	level, num, ok := e.SeverityLevel()
+	fmt.Println(level, num, ok)
+	// Output: Very-High 10 true
 }

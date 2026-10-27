@@ -1,4 +1,8 @@
 *.prof
+*.pprof
+*.trace
 *.test
 *.out
 *.env
+coverage.html
+testtime.json

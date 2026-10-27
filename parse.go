@@ -2,164 +2,175 @@ package cef
 
 import (
 	"bytes"
+	"encoding/binary"
 	"math"
+	"math/bits"
 )
 
-func (p *Parser) fail(pe *ParseError) (*Event, error) {
-	if p.bestEffort {
-		return &p.msg, pe
+// MaxExtensions is the pair limit of UnmarshalText and of the text methods, and the
+// limit to pass to Parse for a caller that declares none of its own.
+const MaxExtensions = 256
+
+// Shape of the event prefix: the bytes that open an event, and the most digits of a
+// version.
+const (
+	cefPrefix     = "CEF:"
+	versionDigits = 4
+)
+
+// Parse reads input, which starts with "CEF:", into e: the version, six header fields
+// to the seventh unescaped '|' and at most maxExtensions pairs. It allocates only to
+// grow e's pairs and, on a fault, the *ParseError; e keeps what precedes a fault.
+func (e *Event) Parse(input []byte, maxExtensions int) error {
+	if exceedsSpans(len(input)) {
+		e.Reset()
+		return fault(0, ErrInputTooLarge)
 	}
-	return nil, pe
-}
-
-// Parse parses the input as a CEF message.
-// The returned *Event is valid until the next Parse call on the same Parser.
-func (p *Parser) Parse(input []byte) (*Event, error) {
-	p.resetMsg(input)
-
+	e.restart(input)
 	if len(input) == 0 {
-		return p.fail(p.makeError(0, ErrEmpty))
+		return fault(0, ErrEmpty)
 	}
-	if uint64(len(input)) > math.MaxUint32 {
-		return p.fail(p.makeError(0, ErrInputTooLarge))
-	}
-	n := u32(len(input))
-
-	pos, err := p.parseVersion(input, n)
+	p, err := e.parseVersion(input)
 	if err != nil {
-		return p.fail(err)
+		return err
 	}
-
-	pos, err = p.parseHeaderFields(input, pos, n)
-	if err != nil {
-		return p.fail(err)
+	if p, err = e.parseHeader(input, p); err != nil {
+		return err
 	}
-
-	p.msg.headerComplete = true
-
-	if pos < n && input[pos] == '|' {
-		if extErr := p.parseExtensions(pos + 1); extErr != nil {
-			return p.fail(extErr)
-		}
-	}
-
-	return &p.msg, nil
+	e.headerComplete = true
+	return e.parseExtensions(p, maxExtensions)
 }
 
-func (p *Parser) resetMsg(input []byte) {
-	p.msg.raw = input
-	p.msg.Version = InvalidVersion
-	p.msg.Vendor = Span{}
-	p.msg.Product = Span{}
-	p.msg.DevVersion = Span{}
-	p.msg.ClassID = Span{}
-	p.msg.Name = Span{}
-	p.msg.Severity = Span{}
-	p.msg.ExtCount = 0
-	p.msg.headerComplete = false
+// exceedsSpans reports whether an input of n bytes holds positions a Span cannot.
+func exceedsSpans(n int) bool { return int64(n) > math.MaxUint32 }
+
+// offset returns the input position i as a Span offset.
+//
+//nolint:gosec // Parse refuses an input whose positions exceed math.MaxUint32
+func offset(i int) uint32 { return uint32(i) }
+
+// parseVersion reads the prefix and the version token, the bytes up to the first '|'
+// after leading spaces, and returns the position after that '|'.
+func (e *Event) parseVersion(input []byte) (int, error) {
+	if len(input) < len(cefPrefix) || string(input[:len(cefPrefix)]) != cefPrefix {
+		return 0, fault(0, ErrPrefix)
+	}
+	start := skipSpaces(input, len(cefPrefix))
+	v, n, ok := versionToken(input[start:])
+	if !ok {
+		return start, fault(start, ErrVersion)
+	}
+	p := start + n
+	e.version = v
+	if p == len(input) {
+		return p, fault(p, ErrIncompleteHeader)
+	}
+	return p + 1, nil
 }
 
-func skipSpaces(input []byte, p, n uint32) uint32 {
-	for p < n && input[p] == ' ' {
+// versionToken reads the digits that b starts with, versionDigits+1 at most, and
+// returns their value, their count, and whether they are a version that the end of b
+// or a '|' follows.
+func versionToken(b []byte) (v uint16, n int, ok bool) {
+	for n < len(b) && n <= versionDigits && isDigit(b[n]) {
+		v = v*decimal + uint16(b[n]-'0')
+		n++
+	}
+	ok = n > 0 && n <= versionDigits && (n == 1 || b[0] != '0') && (n == len(b) || b[n] == '|')
+	return v, n, ok
+}
+
+// isDigit reports whether c is an ASCII decimal digit.
+func isDigit(c byte) bool { return c-'0' < decimal }
+
+// skipSpaces returns the position of the first byte at or after p that is not a space.
+func skipSpaces(b []byte, p int) int {
+	for p < len(b) && b[p] == ' ' {
 		p++
 	}
 	return p
 }
 
-func scanDigits(input []byte, p, n uint32) uint32 {
-	for p < n && input[p] >= '0' && input[p] <= '9' {
-		p++
+// parseHeader reads the six header fields from p, each ended by a '|' that no
+// backslash escapes, a word at a time, and returns the position after the seventh '|';
+// a field whose '|' follows a backslash goes to parseFields.
+func (e *Event) parseHeader(input []byte, p int) (int, error) {
+	if len(input) < scanBytes {
+		return e.parseFields(input, p, 0)
 	}
-	return p
+	field, start := 0, p
+	for ; p < len(input); p += scanBytes {
+		for m := pipeLanes(wordAt(input, p)); m != 0; m &= m - 1 {
+			q := p + bits.TrailingZeros64(m)/laneBits
+			if input[q-1] == '\\' {
+				return e.parseFields(input, start, field)
+			}
+			e.header[field] = Span{Start: offset(start), End: offset(q)}
+			if field, start = field+1, q+1; field == headerFields {
+				return start, nil
+			}
+		}
+	}
+	return e.parseFields(input, start, field)
 }
 
-func (p *Parser) parseVersion(input []byte, n uint32) (uint32, *ParseError) {
-	if n < 4 || string(input[:4]) != "CEF:" {
-		return 0, p.makeError(0, ErrPrefix)
+// parseFields reads the header fields from index field on, the first at p, each with
+// fieldEnd, and returns the position after the seventh '|'.
+func (e *Event) parseFields(input []byte, p, field int) (int, error) {
+	for i := field; i < headerFields; i++ {
+		end := fieldEnd(input, p)
+		e.header[i] = Span{Start: offset(p), End: offset(end)}
+		if end == len(input) {
+			return end, fault(end, ErrIncompleteHeader)
+		}
+		p = end + 1
 	}
-	pos := skipSpaces(input, 4, n)
-
-	if pos >= n || input[pos] < '0' || input[pos] > '9' {
-		return pos, p.makeError(pos, ErrVersion)
-	}
-	vStart := pos
-	pos = scanDigits(input, pos, n)
-	p.msg.Version = parseVersionBytes(input[vStart:pos])
-	if p.msg.Version < 0 {
-		return vStart, p.makeError(vStart, ErrVersion)
-	}
-
-	if pos >= n || input[pos] != '|' {
-		return pos, p.makeError(pos, ErrIncompleteHeader)
-	}
-	return pos + 1, nil
+	return p, nil
 }
 
-func (p *Parser) parseHeaderFields(input []byte, pos, n uint32) (uint32, *ParseError) {
-	targets := [6]*Span{
-		&p.msg.Vendor, &p.msg.Product, &p.msg.DevVersion,
-		&p.msg.ClassID, &p.msg.Name, &p.msg.Severity,
+// wordAt returns the scanBytes bytes of input from p as a little-endian word, zero past
+// the end of input, which holds scanBytes bytes or more.
+func wordAt(input []byte, p int) uint64 {
+	if p+scanBytes <= len(input) {
+		return binary.LittleEndian.Uint64(input[p:])
 	}
-	for i, field := range targets {
-		start := pos
-		pos = scanField(input, pos, n)
-		*field = Span{start, pos}
-		if i == 5 {
-			break
-		}
-		if pos >= n || input[pos] != '|' {
-			return pos, p.makeError(pos, ErrIncompleteHeader)
-		}
-		pos++
-	}
-	return pos, nil
+	tail := len(input) - scanBytes
+	return binary.LittleEndian.Uint64(input[tail:]) >> ((p - tail) * laneBits)
 }
 
-// scanField returns the next unescaped '|' position in input[pos:n], or n.
-func scanField(input []byte, pos, n uint32) uint32 {
-	start := pos
-	for pos < n {
-		idx := bytes.IndexByte(input[pos:n], '|')
-		if idx < 0 {
-			return n
+// pipeLanes returns laneHigh's bit in each byte of w that is a '|', and 0 elsewhere.
+func pipeLanes(w uint64) uint64 { return zeroLanes(w ^ '|'*laneOnes) }
+
+// fieldEnd returns the position of the first '|' at or after p that no backslash
+// escapes, or len(input) when there is none; after an escaped '|' it walks the escape
+// pairs that follow, so a run of them costs no search per pair.
+func fieldEnd(input []byte, p int) int {
+	start := p
+	for {
+		i := bytes.IndexByte(input[p:], '|')
+		if i < 0 {
+			return len(input)
 		}
-		q := pos + u32(idx)
-		if !isEscapedDelim(input, q, start) {
+		q := p + i
+		if !oddBackslashes(input[start:q]) {
 			return q
 		}
-		pos = q + 1
+		p = q + 1
+		for p+1 < len(input) && input[p] == '\\' {
+			p += 2
+		}
+		if p < len(input) && input[p] == '|' {
+			return p
+		}
 	}
-	return n
 }
 
-// isEscapedDelim reports whether input[at] is preceded by an odd number of
-// backslashes (i.e., it is escaped). minPos bounds the backward scan.
-func isEscapedDelim(input []byte, at, minPos uint32) bool {
-	if at <= minPos || input[at-1] != '\\' {
-		return false
+// oddBackslashes reports whether b ends in an odd run of backslashes, the run that
+// escapes the byte after b.
+func oddBackslashes(b []byte) bool {
+	i := len(b)
+	for i > 0 && b[i-1] == '\\' {
+		i--
 	}
-	bs := uint32(1)
-	for j := at - 1; j > minPos && input[j-1] == '\\'; j-- {
-		bs++
-	}
-	return bs&1 == 1
-}
-
-// parseVersionBytes parses 1-4 ASCII digits; rejects leading zeros except "0".
-func parseVersionBytes(b []byte) Version {
-	n := len(b)
-	if n == 0 || n > 4 {
-		return InvalidVersion
-	}
-	if n == 1 {
-		return Version(b[0] - '0')
-	}
-	if b[0] == '0' {
-		return InvalidVersion
-	}
-	var v Version
-	for _, c := range b {
-		v = v*10 + Version(c-'0')
-	}
-	return v
+	return (len(b)-i)&1 == 1
 }

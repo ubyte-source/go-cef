@@ -1,140 +1,120 @@
 package cef
 
-// Severity level labels returned by Event.SeverityLevel for the named CEF
-// severity values. They correspond to the numeric ranges enforced by
-// numToSeverityLevel: Low=[0,3], Medium=(3,6], High=(6,8], Very-High=(8,10].
-const (
-	SeverityLevelLow      = "Low"
-	SeverityLevelMedium   = "Medium"
-	SeverityLevelHigh     = "High"
-	SeverityLevelVeryHigh = "Very-High"
-	SeverityLevelUnknown  = "Unknown"
+import (
+	"encoding/binary"
+	"strconv"
 )
 
-// SeverityNum returns the numeric severity (0-10) for the parsed event.
-// Named severities: Low=3, Medium=6, High=8, Very-High=10, Unknown=-1.
-// Returns (0, false) if the severity field is invalid.
-func (e *Event) SeverityNum() (int, bool) {
-	b := e.severityBytes()
-	if b == nil {
-		return 0, false
+// Level is a severity level of the Severity field, which SeverityLevel classifies.
+type Level uint8
+
+// The levels of the Severity field: 0 is Unknown, 1-3 Low, 4-6 Medium, 7-8 High, 9-10
+// Very-High.
+const (
+	LevelUnknown Level = iota
+	LevelLow
+	LevelMedium
+	LevelHigh
+	LevelVeryHigh
+)
+
+// String returns the name of l as the Severity field writes it, "Unknown", "Low",
+// "Medium", "High" or "Very-High", with no allocation, and "Level(N)" for another l.
+func (l Level) String() string {
+	if l > LevelVeryHigh {
+		return l.number()
 	}
-	if num, ok := parseDigitSeverity(b); ok {
-		return num, true
-	}
-	name, num := matchNamedSeverity(b)
-	if name == "" {
-		return 0, false
-	}
-	return num, true
+	return levelNames[levelStarts[l]:levelStarts[l+1]]
 }
 
-// SeverityLevel returns the normalized level string:
-// "Low", "Medium", "High", "Very-High", or "Unknown".
-// Returns ("", false) if unparseable.
-func (e *Event) SeverityLevel() (string, bool) {
-	b := e.severityBytes()
-	if b == nil {
-		return "", false
-	}
-	if num, ok := parseDigitSeverity(b); ok {
-		return numToSeverityLevel(num), true
-	}
-	name, _ := matchNamedSeverity(b)
-	if name == "" {
-		return "", false
-	}
-	return name, true
+// The names of the levels, the name of l starting at levelStarts[l] and ending where
+// the next one starts.
+const (
+	levelNames  = "UnknownLowMediumHighVery-High"
+	levelStarts = "\x00\x07\x0a\x10\x14\x1d"
+)
+
+// number returns l as "Level(N)", N in decimal.
+func (l Level) number() string {
+	var buf [len("Level(255)")]byte
+	b := strconv.AppendUint(append(buf[:0], "Level("...), uint64(l), decimal)
+	return string(append(b, ')'))
 }
 
-func (e *Event) severityBytes() []byte {
-	if e.raw == nil || e.Severity.IsEmpty() {
-		return nil
-	}
-	return e.raw[e.Severity.Start:e.Severity.End]
+// SeverityLevel classifies the Severity field once: an integer 0 to 10 gives its level
+// and itself, a name in any letter case Unknown 0, Low 3, Medium 6, High 8 or Very-High
+// 10, and anything else LevelUnknown, 0 and false. No allocation.
+func (e *Event) SeverityLevel() (level Level, num int, ok bool) {
+	return classify(e.raw, e.header[fieldSeverity])
 }
 
-func parseDigitSeverity(b []byte) (int, bool) {
+// numberLevels holds at index n the Level of the integer severity n.
+const numberLevels = "\x00\x01\x01\x01\x02\x02\x02\x03\x03\x04\x04"
+
+// levelNumbers holds at index l the number that the name of the Level l stands for.
+const levelNumbers = "\x00\x03\x06\x08\x0a"
+
+// classify returns the level, the number and the validity of the severity field s of
+// raw: one digit, "10", or a name.
+func classify(raw []byte, s Span) (Level, int, bool) {
+	b := view(raw, s)
+	var level Level
+	ok := false
 	switch len(b) {
-	case 1:
-		if b[0] >= '0' && b[0] <= '9' {
-			return int(b[0] - '0'), true
-		}
-	case 2:
-		if b[0] == '1' && b[1] == '0' {
-			return 10, true
-		}
+	case len("7"):
+		return digitLevel(b[0])
+	case len("10"):
+		level, ok = LevelVeryHigh, string(b) == "10"
+	case len("Low"):
+		level, ok = LevelLow, isLow(b)
+	case len("High"):
+		level, ok = LevelHigh, binary.LittleEndian.Uint32(b)|letterFolds == highWord
+	case len("Medium"):
+		level, ok = LevelMedium, foldMatch(b, mediWord, diumWord)
+	case len("Unknown"):
+		level, ok = LevelUnknown, foldMatch(b, unknWord, nownWord)
+	case len("Very-High"):
+		level, ok = LevelVeryHigh, foldMatch(b, veryWord, highWord) && b[len("Very")] == '-'
 	}
-	return 0, false
+	if !ok {
+		return LevelUnknown, 0, false
+	}
+	return level, int(levelNumbers[level]), true
 }
 
-func numToSeverityLevel(num int) string {
-	switch {
-	case num < 0:
-		return ""
-	case num <= 3:
-		return SeverityLevelLow
-	case num <= 6:
-		return SeverityLevelMedium
-	case num <= 8:
-		return SeverityLevelHigh
+// digitLevel returns the level and the number of the one-byte severity field c.
+func digitLevel(c byte) (Level, int, bool) {
+	if d := c - '0'; d < decimal {
+		return Level(numberLevels[d]), int(d), true
 	}
-	return SeverityLevelVeryHigh
+	return LevelUnknown, 0, false
 }
 
-// matchNamedSeverity dispatches by length and delegates the byte comparison.
-func matchNamedSeverity(b []byte) (name string, num int) {
-	switch len(b) {
-	case 3:
-		return matchLow(b)
-	case 4:
-		return matchHigh(b)
-	case 6:
-		return matchMedium(b)
-	case 7:
-		return matchUnknown(b)
-	case 9:
-		return matchVeryHigh(b)
-	}
-	return "", 0
+// isLow reports whether b, of three bytes, is "low" in any letter case.
+func isLow(b []byte) bool {
+	return b[0]|letterFold == 'l' && b[1]|letterFold == 'o' && b[2]|letterFold == 'w'
 }
 
-// OR by 0x20 folds ASCII uppercase to lowercase; '-' and digits are preserved.
-func matchLow(b []byte) (name string, num int) {
-	if b[0]|0x20 == 'l' && b[1]|0x20 == 'o' && b[2]|0x20 == 'w' {
-		return SeverityLevelLow, 3
-	}
-	return "", 0
-}
+// Letter folds: setting the 0x20 bit of an ASCII letter gives its lower case, in one
+// byte or in each byte of a word.
+const (
+	letterFold  = 0x20
+	letterFolds = 0x20202020
+)
 
-func matchHigh(b []byte) (name string, num int) {
-	if b[0]|0x20 == 'h' && b[1]|0x20 == 'i' && b[2]|0x20 == 'g' && b[3]|0x20 == 'h' {
-		return SeverityLevelHigh, 8
-	}
-	return "", 0
-}
+// Words of the level names in lower case, as little-endian words of four bytes.
+const (
+	highWord = 'h' | 'i'<<lane1 | 'g'<<lane2 | 'h'<<lane3
+	mediWord = 'm' | 'e'<<lane1 | 'd'<<lane2 | 'i'<<lane3
+	diumWord = 'd' | 'i'<<lane1 | 'u'<<lane2 | 'm'<<lane3
+	unknWord = 'u' | 'n'<<lane1 | 'k'<<lane2 | 'n'<<lane3
+	nownWord = 'n' | 'o'<<lane1 | 'w'<<lane2 | 'n'<<lane3
+	veryWord = 'v' | 'e'<<lane1 | 'r'<<lane2 | 'y'<<lane3
+)
 
-func matchMedium(b []byte) (name string, num int) {
-	if b[0]|0x20 == 'm' && b[1]|0x20 == 'e' && b[2]|0x20 == 'd' &&
-		b[3]|0x20 == 'i' && b[4]|0x20 == 'u' && b[5]|0x20 == 'm' {
-		return SeverityLevelMedium, 6
-	}
-	return "", 0
-}
-
-func matchUnknown(b []byte) (name string, num int) {
-	if b[0]|0x20 == 'u' && b[1]|0x20 == 'n' && b[2]|0x20 == 'k' && b[3]|0x20 == 'n' &&
-		b[4]|0x20 == 'o' && b[5]|0x20 == 'w' && b[6]|0x20 == 'n' {
-		return SeverityLevelUnknown, SeverityUnknown
-	}
-	return "", 0
-}
-
-func matchVeryHigh(b []byte) (name string, num int) {
-	if b[4] == '-' &&
-		b[0]|0x20 == 'v' && b[1]|0x20 == 'e' && b[2]|0x20 == 'r' && b[3]|0x20 == 'y' &&
-		b[5]|0x20 == 'h' && b[6]|0x20 == 'i' && b[7]|0x20 == 'g' && b[8]|0x20 == 'h' {
-		return SeverityLevelVeryHigh, 10
-	}
-	return "", 0
+// foldMatch reports whether the first and the last word of b, of wordLen bytes or more,
+// are first and last once its letters are folded to lower case.
+func foldMatch(b []byte, first, last uint32) bool {
+	return binary.LittleEndian.Uint32(b)|letterFolds == first &&
+		binary.LittleEndian.Uint32(b[len(b)-wordLen:])|letterFolds == last
 }

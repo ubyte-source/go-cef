@@ -1,0 +1,1060 @@
+[
+  {
+    "name": "version 0 example",
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|10|src=10.0.0.1 dst=2.1.2.2 spt=1232",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "10"],
+    "pairs": [
+      ["src", "10.0.0.1"],
+      ["dst", "2.1.2.2"],
+      ["spt", "1232"]
+    ]
+  },
+  {
+    "name": "version 1 example",
+    "line": "CEF:1|Security|threatmanager|1.0|100|worm successfully stopped|10|src=10.0.0.1 dst=2.1.2.2 spt=1232",
+    "version": 1,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "10"],
+    "pairs": [
+      ["src", "10.0.0.1"],
+      ["dst", "2.1.2.2"],
+      ["spt", "1232"]
+    ]
+  },
+  {
+    "name": "spaces in an extension value",
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|10|filePath=/user/username/dir/my file name.txt",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "10"],
+    "pairs": [
+      ["filePath", "/user/username/dir/my file name.txt"]
+    ]
+  },
+  {
+    "name": "pipe in the header and in the extension",
+    "line": "CEF:0|security|threatmanager|1.0|100|detected a \\| in message|10|src=10.0.0.1 act=blocked a | dst=1.1.1.1",
+    "version": 0,
+    "header": ["security", "threatmanager", "1.0", "100", "detected a | in message", "10"],
+    "pairs": [
+      ["src", "10.0.0.1"],
+      ["act", "blocked a |"],
+      ["dst", "1.1.1.1"]
+    ]
+  },
+  {
+    "name": "backslash in the header and in the extension",
+    "line": "CEF:0|security|threatmanager|1.0|100|detected a \\\\ in packet|10|src=10.0.0.1 act=blocked a \\\\ dst=1.1.1.1",
+    "version": 0,
+    "header": ["security", "threatmanager", "1.0", "100", "detected a \\ in packet", "10"],
+    "pairs": [
+      ["src", "10.0.0.1"],
+      ["act", "blocked a \\"],
+      ["dst", "1.1.1.1"]
+    ]
+  },
+  {
+    "name": "equal sign in the header and in the extension",
+    "line": "CEF:0|security|threatmanager|1.0|100|detected a = in message|10|src=10.0.0.1 act=blocked a \\= dst=1.1.1.1",
+    "version": 0,
+    "header": ["security", "threatmanager", "1.0", "100", "detected a = in message", "10"],
+    "pairs": [
+      ["src", "10.0.0.1"],
+      ["act", "blocked a ="],
+      ["dst", "1.1.1.1"]
+    ]
+  },
+  {
+    "name": "multi-line extension value",
+    "line": "CEF:0|security|threatmanager|1.0|100|Detected a threat. No action needed.|10|src=10.0.0.1 msg=Detected a threat.\\n No action needed",
+    "version": 0,
+    "header": ["security", "threatmanager", "1.0", "100", "Detected a threat. No action needed.", "10"],
+    "pairs": [
+      ["src", "10.0.0.1"],
+      ["msg", "Detected a threat.\n No action needed"]
+    ]
+  },
+  {
+    "name": "v27 p.7: version 0 example as printed, syslog prefix refused",
+    "line": "Sep 19 08:26:10 host CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|10|src=10.0.0.1 dst=2.1.2.2 spt=1232",
+    "fault": "ErrPrefix",
+    "version": 0,
+    "header": ["", "", "", "", "", ""]
+  },
+  {
+    "name": "v27 p.7: version 1 example as printed, syslog prefix refused",
+    "line": "Sep 29 08:26:10 host CEF:1|Security|threatmanager|1.0|100|worm successfully stopped|10|src=10.0.0.1 dst=2.1.2.2 spt=1232",
+    "fault": "ErrPrefix",
+    "version": 0,
+    "header": ["", "", "", "", "", ""]
+  },
+  {
+    "name": "v27 p.9: pipe example as printed, syslog prefix refused",
+    "line": "Sep 19 08:26:10 host CEF:0|security|threatmanager|1.0|100|detected a \\| in message|10|src=10.0.0.1 act=blocked a | dst=1.1.1.1",
+    "fault": "ErrPrefix",
+    "version": 0,
+    "header": ["", "", "", "", "", ""]
+  },
+  {
+    "name": "v27 p.9: backslash example as printed, syslog prefix refused",
+    "line": "Sep 19 08:26:10 host CEF:0|security|threatmanager|1.0|100|detected a \\\\ in packet|10|src=10.0.0.1 act=blocked a \\\\ dst=1.1.1.1",
+    "fault": "ErrPrefix",
+    "version": 0,
+    "header": ["", "", "", "", "", ""]
+  },
+  {
+    "name": "v27 p.9: equal sign example as printed, syslog prefix refused",
+    "line": "Sep 19 08:26:10 host CEF:0|security|threatmanager|1.0|100|detected a = in message|10|src=10.0.0.1 act=blocked a \\= dst=1.1.1.1",
+    "fault": "ErrPrefix",
+    "version": 0,
+    "header": ["", "", "", "", "", ""]
+  },
+  {
+    "name": "v27 p.9: multi-line example as printed, syslog prefix refused",
+    "line": "Sep 19 08:26:10 host CEF:0|security|threatmanager|1.0|100|Detected a threat. No action needed.|10|src=10.0.0.1 msg=Detected a threat.\\n No action needed",
+    "fault": "ErrPrefix",
+    "version": 0,
+    "header": ["", "", "", "", "", ""]
+  },
+  {
+    "name": "v27 p.7: CEF:Version is mandatory, an empty line",
+    "line": "",
+    "fault": "ErrEmpty",
+    "version": 0,
+    "header": ["", "", "", "", "", ""]
+  },
+  {
+    "name": "v27 p.7: CEF:Version is mandatory, a line without it",
+    "line": "0|Security|threatmanager|1.0|100|worm successfully stopped|10|src=10.0.0.1",
+    "fault": "ErrPrefix",
+    "version": 0,
+    "header": ["", "", "", "", "", ""]
+  },
+  {
+    "name": "v27 p.8: a line begins with CEF: in capitals",
+    "line": "cef:0|Security|threatmanager|1.0|100|worm successfully stopped|10|src=10.0.0.1",
+    "fault": "ErrPrefix",
+    "version": 0,
+    "header": ["", "", "", "", "", ""]
+  },
+  {
+    "name": "v27 p.5: the version is an integer, none given",
+    "line": "CEF:|Security|threatmanager|1.0|100|worm successfully stopped|10|",
+    "fault": "ErrVersion",
+    "version": 0,
+    "header": ["", "", "", "", "", ""]
+  },
+  {
+    "name": "v27 p.5: specification 0.1 writes version 0, not 0.1",
+    "line": "CEF:0.1|Security|threatmanager|1.0|100|worm successfully stopped|10|src=10.0.0.1",
+    "fault": "ErrVersion",
+    "version": 0,
+    "header": ["", "", "", "", "", ""]
+  },
+  {
+    "name": "v27 p.5: specification 1.2 writes version 1, not 1.2",
+    "line": "CEF:1.2|Security|threatmanager|1.0|100|worm successfully stopped|10|src=10.0.0.1",
+    "fault": "ErrVersion",
+    "version": 0,
+    "header": ["", "", "", "", "", ""]
+  },
+  {
+    "name": "v27 p.8: the format template, whose Version is no integer",
+    "line": "CEF:Version|Device Vendor|Device Product|Device Version|Device Event Class ID|Name|Severity|",
+    "fault": "ErrVersion",
+    "version": 0,
+    "header": ["", "", "", "", "", ""]
+  },
+  {
+    "name": "v27 p.5: a version past 1, read as the README states",
+    "line": "CEF:9999|Security|threatmanager|1.0|100|worm successfully stopped|10|src=10.0.0.1",
+    "version": 9999,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "10"],
+    "pairs": [
+      ["src", "10.0.0.1"]
+    ]
+  },
+  {
+    "name": "v27 p.5: a version of five digits, refused as the README states",
+    "line": "CEF:10000|Security|threatmanager|1.0|100|worm successfully stopped|10|src=10.0.0.1",
+    "fault": "ErrVersion",
+    "version": 0,
+    "header": ["", "", "", "", "", ""]
+  },
+  {
+    "name": "v27 p.5: a version with a leading zero, refused as the README states",
+    "line": "CEF:01|Security|threatmanager|1.0|100|worm successfully stopped|10|src=10.0.0.1",
+    "fault": "ErrVersion",
+    "version": 0,
+    "header": ["", "", "", "", "", ""]
+  },
+  {
+    "name": "v27 p.5: a space before the version, read as the README states",
+    "line": "CEF: 1|Security|threatmanager|1.0|100|worm successfully stopped|10|src=10.0.0.1",
+    "version": 1,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "10"],
+    "pairs": [
+      ["src", "10.0.0.1"]
+    ]
+  },
+  {
+    "name": "v27 p.5: the line ends after the version",
+    "line": "CEF:1",
+    "fault": "ErrIncompleteHeader",
+    "version": 1,
+    "header": ["", "", "", "", "", ""]
+  },
+  {
+    "name": "v27 p.5: the pipe after Severity is required",
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|10",
+    "fault": "ErrIncompleteHeader",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "10"]
+  },
+  {
+    "name": "v27 p.5: no pipe after Severity, so the pairs are Severity text",
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|10 src=10.0.0.1 dst=2.1.2.2",
+    "fault": "ErrIncompleteHeader",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "10 src=10.0.0.1 dst=2.1.2.2"]
+  },
+  {
+    "name": "v27 p.7: all of the fields must be present",
+    "line": "CEF:0|Security|threatmanager|1.0",
+    "fault": "ErrIncompleteHeader",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "", "", ""]
+  },
+  {
+    "name": "v27 p.5: seven pipes and six empty fields",
+    "line": "CEF:0|||||||",
+    "version": 0,
+    "header": ["", "", "", "", "", ""]
+  },
+  {
+    "name": "v27 p.7: the extension is not mandatory",
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|10|",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "10"]
+  },
+  {
+    "name": "v27 p.5: an escaped delimiter is data, so a field is missing",
+    "line": "CEF:0|Security\\|threatmanager|1.0|100|worm successfully stopped|10|",
+    "fault": "ErrIncompleteHeader",
+    "version": 0,
+    "header": ["Security|threatmanager", "1.0", "100", "worm successfully stopped", "10", ""]
+  },
+  {
+    "name": "v27 p.5: an escaped pipe in every header field",
+    "line": "CEF:0|Sec\\|urity|threat\\|manager|1.0\\|2|100\\|7|worm \\| stopped|1\\|0|",
+    "version": 0,
+    "header": ["Sec|urity", "threat|manager", "1.0|2", "100|7", "worm | stopped", "1|0"]
+  },
+  {
+    "name": "v27 p.5: an escaped pipe just before the delimiter",
+    "line": "CEF:0|security|threatmanager|1.0|100|detected a \\||10|src=10.0.0.1",
+    "version": 0,
+    "header": ["security", "threatmanager", "1.0", "100", "detected a |", "10"],
+    "pairs": [
+      ["src", "10.0.0.1"]
+    ]
+  },
+  {
+    "name": "v27 p.9: a backslash before a header pipe",
+    "line": "CEF:0|security\\\\|threatmanager|1.0|100|detected a \\\\ in packet|10|src=10.0.0.1",
+    "version": 0,
+    "header": ["security\\", "threatmanager", "1.0", "100", "detected a \\ in packet", "10"],
+    "pairs": [
+      ["src", "10.0.0.1"]
+    ]
+  },
+  {
+    "name": "v27 p.9: an escaped backslash, then an escaped pipe",
+    "line": "CEF:0|security|threatmanager|1.0|100|detected a \\\\\\| in packet|10|src=10.0.0.1",
+    "version": 0,
+    "header": ["security", "threatmanager", "1.0", "100", "detected a \\| in packet", "10"],
+    "pairs": [
+      ["src", "10.0.0.1"]
+    ]
+  },
+  {
+    "name": "v27 p.9: two escaped backslashes before Severity's pipe",
+    "line": "CEF:0|security|threatmanager|1.0|100|detected a worm|10\\\\\\\\|src=10.0.0.1",
+    "version": 0,
+    "header": ["security", "threatmanager", "1.0", "100", "detected a worm", "10\\\\"],
+    "pairs": [
+      ["src", "10.0.0.1"]
+    ]
+  },
+  {
+    "name": "v27 p.9: header spaces are valid, and <space> is text",
+    "line": "CEF:0|Security Vendor|threat manager|1.0 beta|100| worm<space>successfully  stopped |10|",
+    "version": 0,
+    "header": ["Security Vendor", "threat manager", "1.0 beta", "100", " worm<space>successfully  stopped ", "10"]
+  },
+  {
+    "name": "v27 p.9: \\n in the header is no newline",
+    "line": "CEF:0|security|threatmanager|1.0|100|Detected a threat.\\n No action needed.|10|",
+    "version": 0,
+    "header": ["security", "threatmanager", "1.0", "100", "Detected a threat.\\n No action needed.", "10"]
+  },
+  {
+    "name": "v27 p.9: a raw newline in the header, read as the README states",
+    "line": "CEF:0|security|threatmanager|1.0|100|Detected a threat.\n No action needed.|10|",
+    "version": 0,
+    "header": ["security", "threatmanager", "1.0", "100", "Detected a threat.\n No action needed.", "10"]
+  },
+  {
+    "name": "v27 p.9: a lone backslash in the header stays, as the README states",
+    "line": "CEF:0|security|threatmanager|1.0|100|copied C:\\Windows\\temp\\x.exe|10|",
+    "version": 0,
+    "header": ["security", "threatmanager", "1.0", "100", "copied C:\\Windows\\temp\\x.exe", "10"]
+  },
+  {
+    "name": "v27 p.6: \\=, \\% and \\# in the class ID stay, as the README states",
+    "line": "CEF:0|security|scanner|1.0|CVE-2021-44228\\=log4j\\%20\\#1|vulnerability found|7|",
+    "version": 0,
+    "header": ["security", "scanner", "1.0", "CVE-2021-44228\\=log4j\\%20\\#1", "vulnerability found", "7"]
+  },
+  {
+    "name": "v27 p.9: \\r encodes a newline",
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|10|src=10.0.0.1 msg=Detected a threat.\\r No action needed",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "10"],
+    "pairs": [
+      ["src", "10.0.0.1"],
+      ["msg", "Detected a threat.\r No action needed"]
+    ]
+  },
+  {
+    "name": "v27 p.9: \\r\\n in a value",
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|10|msg=line one\\r\\nline two src=10.0.0.1",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "10"],
+    "pairs": [
+      ["msg", "line one\r\nline two"],
+      ["src", "10.0.0.1"]
+    ]
+  },
+  {
+    "name": "v27 p.9: an escaped backslash, then an escaped =",
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|10|src=10.0.0.1 act=blocked a \\\\\\= dst=1.1.1.1",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "10"],
+    "pairs": [
+      ["src", "10.0.0.1"],
+      ["act", "blocked a \\="],
+      ["dst", "1.1.1.1"]
+    ]
+  },
+  {
+    "name": "v27 p.9: an escaped = after a word starts no pair",
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|10|src=10.0.0.1 msg=a key\\=value pair",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "10"],
+    "pairs": [
+      ["src", "10.0.0.1"],
+      ["msg", "a key=value pair"]
+    ]
+  },
+  {
+    "name": "v27 p.9: a value of escapes only",
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|10|msg=\\\\\\=\\n\\r src=10.0.0.1",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "10"],
+    "pairs": [
+      ["msg", "\\=\n\r"],
+      ["src", "10.0.0.1"]
+    ]
+  },
+  {
+    "name": "v27 p.9: pipes in a value, unescaped",
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|10|msg=|a|b|| src=10.0.0.1",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "10"],
+    "pairs": [
+      ["msg", "|a|b||"],
+      ["src", "10.0.0.1"]
+    ]
+  },
+  {
+    "name": "v27 p.9: \\| in a value stays, as the README states",
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|10|src=10.0.0.1 act=blocked a \\| dst=1.1.1.1",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "10"],
+    "pairs": [
+      ["src", "10.0.0.1"],
+      ["act", "blocked a \\|"],
+      ["dst", "1.1.1.1"]
+    ]
+  },
+  {
+    "name": "v27 p.9: a lone backslash in a value stays, as the README states",
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|10|fname=C:\\Windows\\System32\\drivers filePath=C:\\temp\\ dst=1.1.1.1",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "10"],
+    "pairs": [
+      ["fname", "C:\\Windows\\System32\\drivers"],
+      ["filePath", "C:\\temp\\"],
+      ["dst", "1.1.1.1"]
+    ]
+  },
+  {
+    "name": "v27 p.9: an unescaped = in a value, read as the README states",
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|10|request=https://example.com/?a=1&b=2 src=10.0.0.1",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "10"],
+    "pairs": [
+      ["request", "https://example.com/?a=1&b=2"],
+      ["src", "10.0.0.1"]
+    ]
+  },
+  {
+    "name": "v27 p.9: an unescaped = after a space and a word starts a pair",
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|10|msg=the sum is x=2",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "10"],
+    "pairs": [
+      ["msg", "the sum is"],
+      ["x", "2"]
+    ]
+  },
+  {
+    "name": "v27 p.44: a custom key, VendornameProductnameExplanatoryKeyName",
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|10|src=10.0.0.1 VendornameProductnameExplanatoryKeyName=worm",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "10"],
+    "pairs": [
+      ["src", "10.0.0.1"],
+      ["VendornameProductnameExplanatoryKeyName", "worm"]
+    ]
+  },
+  {
+    "name": "v27 p.44: a key is a single word, the word before =",
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|10|src=10.0.0.1 Vendorname ProductnameKey=1",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "10"],
+    "pairs": [
+      ["src", "10.0.0.1 Vendorname"],
+      ["ProductnameKey", "1"]
+    ]
+  },
+  {
+    "name": "v27 p.44: a first key with a space is refused",
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|10|Vendorname ProductnameKey=1 src=10.0.0.1",
+    "fault": "ErrExtKey",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "10"]
+  },
+  {
+    "name": "v27 p.44: a key is alphanumeric, so clé= starts no pair",
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|10|src=10.0.0.1 msg=Grüße clé=1",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "10"],
+    "pairs": [
+      ["src", "10.0.0.1"],
+      ["msg", "Grüße clé=1"]
+    ]
+  },
+  {
+    "name": "v27 p.44: a punctuation byte in a word starts no pair",
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|10|src=10.0.0.1 msg=hello bad:key=2",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "10"],
+    "pairs": [
+      ["src", "10.0.0.1"],
+      ["msg", "hello bad:key=2"]
+    ]
+  },
+  {
+    "name": "v27 p.44: key bytes ., _, -, [ and ], read as the README states",
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|10|ad.Logon_Type=2 ad.field[0]=x my-key=y",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "10"],
+    "pairs": [
+      ["ad.Logon_Type", "2"],
+      ["ad.field[0]", "x"],
+      ["my-key", "y"]
+    ]
+  },
+  {
+    "name": "v27 p.8: the extension is key-value pairs",
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|10|worm successfully stopped",
+    "fault": "ErrExtKey",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "10"]
+  },
+  {
+    "name": "v27 p.8: a key is not empty",
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|10|=10.0.0.1 dst=2.1.2.2",
+    "fault": "ErrExtKey",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "10"]
+  },
+  {
+    "name": "v27 p.10: a full name, read as a key like any other",
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|10|sourceAddress=10.0.0.1 destinationAddress=2.1.2.2",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "10"],
+    "pairs": [
+      ["sourceAddress", "10.0.0.1"],
+      ["destinationAddress", "2.1.2.2"]
+    ]
+  },
+  {
+    "name": "v27 p.39: the dictionary's longest key",
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|10|src=10.0.0.1 destinationTranslatedZoneExternalID=zone-42",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "10"],
+    "pairs": [
+      ["src", "10.0.0.1"],
+      ["destinationTranslatedZoneExternalID", "zone-42"]
+    ]
+  },
+  {
+    "name": "v27 p.21: the longest producer key",
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|10|src=10.0.0.1 destinationTranslatedAddress=192.168.10.1",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "10"],
+    "pairs": [
+      ["src", "10.0.0.1"],
+      ["destinationTranslatedAddress", "192.168.10.1"]
+    ]
+  },
+  {
+    "name": "v27 p.42: a firewall rule number in cs1, with its label",
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|10|cs1Label=Rule Number cs1=1234 act=blocked",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "10"],
+    "pairs": [
+      ["cs1Label", "Rule Number"],
+      ["cs1", "1234"],
+      ["act", "blocked"]
+    ]
+  },
+  {
+    "name": "v27 p.43: an IPv6 address in c6a1, with its label",
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|10|c6a1=2001:db8::1 c6a1Label=Device IPv6 Address",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "10"],
+    "pairs": [
+      ["c6a1", "2001:db8::1"],
+      ["c6a1Label", "Device IPv6 Address"]
+    ]
+  },
+  {
+    "name": "v27 p.43: an SSID in cs2 and a channel in cn1, with their labels",
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|10|cs2=CorpNet cs2Label=SSID cn1=11 cn1Label=Channel",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "10"],
+    "pairs": [
+      ["cs2", "CorpNet"],
+      ["cs2Label", "SSID"],
+      ["cn1", "11"],
+      ["cn1Label", "Channel"]
+    ]
+  },
+  {
+    "name": "v27 p.8: all spaces but the last before a key belong to the value",
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|10|msg=hello   src=10.0.0.1",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "10"],
+    "pairs": [
+      ["msg", "hello  "],
+      ["src", "10.0.0.1"]
+    ]
+  },
+  {
+    "name": "v27 p.8: a value of spaces before a key",
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|10|msg=   src=10.0.0.1",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "10"],
+    "pairs": [
+      ["msg", "  "],
+      ["src", "10.0.0.1"]
+    ]
+  },
+  {
+    "name": "v27 p.8: trailing spaces of the final value are not preserved",
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|10|src=10.0.0.1 msg=hello   ",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "10"],
+    "pairs": [
+      ["src", "10.0.0.1"],
+      ["msg", "hello"]
+    ]
+  },
+  {
+    "name": "v27 p.8: a final value of spaces only",
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|10|src=10.0.0.1 msg=   ",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "10"],
+    "pairs": [
+      ["src", "10.0.0.1"],
+      ["msg", ""]
+    ]
+  },
+  {
+    "name": "v27 p.8: spaces before the first key, read as the README states",
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|10|   src=10.0.0.1 dst=2.1.2.2",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "10"],
+    "pairs": [
+      ["src", "10.0.0.1"],
+      ["dst", "2.1.2.2"]
+    ]
+  },
+  {
+    "name": "v27 p.8: an extension of spaces only",
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|10|   ",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "10"]
+  },
+  {
+    "name": "v27 p.8: a value keeps its leading spaces",
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|10|msg=  hello src=10.0.0.1",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "10"],
+    "pairs": [
+      ["msg", "  hello"],
+      ["src", "10.0.0.1"]
+    ]
+  },
+  {
+    "name": "v27 p.8: a value keeps its inner runs of spaces",
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|10|msg=worm  successfully   stopped src=10.0.0.1",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "10"],
+    "pairs": [
+      ["msg", "worm  successfully   stopped"],
+      ["src", "10.0.0.1"]
+    ]
+  },
+  {
+    "name": "v27 p.8: pairs are separated by spaces, not tabs",
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|10|src=10.0.0.1\tdst=2.1.2.2 spt=1232",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "10"],
+    "pairs": [
+      ["src", "10.0.0.1\tdst=2.1.2.2"],
+      ["spt", "1232"]
+    ]
+  },
+  {
+    "name": "v27 p.8: a CR LF line end, read as the README states",
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|10|src=10.0.0.1 dst=2.1.2.2\r\n",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "10"],
+    "pairs": [
+      ["src", "10.0.0.1"],
+      ["dst", "2.1.2.2"]
+    ]
+  },
+  {
+    "name": "v27 p.8: an empty value",
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|10|src= dst=2.1.2.2",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "10"],
+    "pairs": [
+      ["src", ""],
+      ["dst", "2.1.2.2"]
+    ]
+  },
+  {
+    "name": "v27 p.8: an empty final value",
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|10|src=10.0.0.1 msg=",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "10"],
+    "pairs": [
+      ["src", "10.0.0.1"],
+      ["msg", ""]
+    ]
+  },
+  {
+    "name": "v27 p.9: UTF-8 text in the header and in values",
+    "line": "CEF:0|Security|threatmanager|1.0|100|Zugriff verweigert für “müller”|10|suser=müller msg=ログインに失敗しました cs1Label=Lock cs1=🔒",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "Zugriff verweigert für “müller”", "10"],
+    "pairs": [
+      ["suser", "müller"],
+      ["msg", "ログインに失敗しました"],
+      ["cs1Label", "Lock"],
+      ["cs1", "🔒"]
+    ]
+  },
+  {
+    "name": "v27 p.9: a raw newline in a value, read as the README states",
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|10|msg=line one\nline two src=10.0.0.1",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "10"],
+    "pairs": [
+      ["msg", "line one\nline two"],
+      ["src", "10.0.0.1"]
+    ]
+  },
+  {
+    "name": "v27 p.7: severity 0, Unknown",
+    "severityLevel": {"level": "Unknown", "number": 0, "ok": true},
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|0|",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "0"]
+  },
+  {
+    "name": "v27 p.7: severity 1, Low",
+    "severityLevel": {"level": "Low", "number": 1, "ok": true},
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|1|",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "1"]
+  },
+  {
+    "name": "v27 p.7: severity 2, Low",
+    "severityLevel": {"level": "Low", "number": 2, "ok": true},
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|2|",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "2"]
+  },
+  {
+    "name": "v27 p.7: severity 3, Low",
+    "severityLevel": {"level": "Low", "number": 3, "ok": true},
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|3|",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "3"]
+  },
+  {
+    "name": "v27 p.7: severity 4, Medium",
+    "severityLevel": {"level": "Medium", "number": 4, "ok": true},
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|4|",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "4"]
+  },
+  {
+    "name": "v27 p.7: severity 5, Medium",
+    "severityLevel": {"level": "Medium", "number": 5, "ok": true},
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|5|",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "5"]
+  },
+  {
+    "name": "v27 p.7: severity 6, Medium",
+    "severityLevel": {"level": "Medium", "number": 6, "ok": true},
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|6|",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "6"]
+  },
+  {
+    "name": "v27 p.7: severity 7, High",
+    "severityLevel": {"level": "High", "number": 7, "ok": true},
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|7|",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "7"]
+  },
+  {
+    "name": "v27 p.7: severity 8, High",
+    "severityLevel": {"level": "High", "number": 8, "ok": true},
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|8|",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "8"]
+  },
+  {
+    "name": "v27 p.7: severity 9, Very-High",
+    "severityLevel": {"level": "Very-High", "number": 9, "ok": true},
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|9|",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "9"]
+  },
+  {
+    "name": "v27 p.7: severity 10, Very-High",
+    "severityLevel": {"level": "Very-High", "number": 10, "ok": true},
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|10|",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "10"]
+  },
+  {
+    "name": "v27 p.7: severity Unknown, number 0 as the README states",
+    "severityLevel": {"level": "Unknown", "number": 0, "ok": true},
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|Unknown|",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "Unknown"]
+  },
+  {
+    "name": "v27 p.7: severity Low, number 3 as the README states",
+    "severityLevel": {"level": "Low", "number": 3, "ok": true},
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|Low|",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "Low"]
+  },
+  {
+    "name": "v27 p.7: severity Medium, number 6 as the README states",
+    "severityLevel": {"level": "Medium", "number": 6, "ok": true},
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|Medium|",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "Medium"]
+  },
+  {
+    "name": "v27 p.7: severity High, number 8 as the README states",
+    "severityLevel": {"level": "High", "number": 8, "ok": true},
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|High|",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "High"]
+  },
+  {
+    "name": "v27 p.7: severity Very-High, number 10 as the README states",
+    "severityLevel": {"level": "Very-High", "number": 10, "ok": true},
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|Very-High|",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "Very-High"]
+  },
+  {
+    "name": "v27 p.7: deviceSeverity, the source's own word",
+    "severityLevel": {"level": "Unknown", "number": 0, "ok": false},
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|Critical|",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "Critical"]
+  },
+  {
+    "name": "v27 p.5: a vendor past 63 bytes, read as the README states",
+    "line": "CEF:0|SecuritySecuritySecuritySecuritySecuritySecuritySecuritySecurity|threatmanager|1.0|100|worm successfully stopped|10|",
+    "version": 0,
+    "header": ["SecuritySecuritySecuritySecuritySecuritySecuritySecuritySecurity", "threatmanager", "1.0", "100", "worm successfully stopped", "10"]
+  },
+  {
+    "name": "v27 p.10: every producer key of the dictionary",
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|10|act=deviceAction app=applicationProtocol c6a1=deviceCustomIPv6Address1 c6a1Label=deviceCustomIPv6Address1Label c6a3=deviceCustomIPv6Address3 c6a3Label=deviceCustomIPv6AddressLabel c6a4=deviceCustomIPv6Address4 c6a4Label=deviceCustomIPv6Address4Label cat=deviceEventCategory cfp1=deviceCustomFloatingPoint1 cfp1Label=deviceCustoFloatingPoint1Label cfp2=deviceCustomFloatingPoint2 cfp2Label=deviceCustomFloatingPoint2Label cfp3=deviceCustomFloatingPoint3 cfp3Label=deviceCustomFloatingPoint3Label cfp4=deviceCustomFloatingPoint4 cfp4Label=deviceCustomFloatingPoint4Label cn1=deviceCustomNumber1 cn1Label=deviceCustomNumber1Label cn2=deviceCustomNumber2 cn2Label=deviceCustomNumber2Label cn3=deviceCustomNumber3 cn3Label=deviceCustomNumber3Label cnt=baseEventCount cs1=deviceCustomString1 cs1Label=deviceCustomString1Label cs2=deviceCustomString2 cs2Label=deviceCustomString2Label cs3=deviceCustomString3 cs3Label=deviceCustomString3Label cs4=deviceCustomString4 cs4Label=deviceCustomString4Label cs5=deviceCustomString5 cs5Label=deviceCustomString5Label cs6=deviceCustomString6 cs6Label=deviceCustomString6Label destinationDnsDomain=destinationDnsDomain destinationServiceName=destinationServiceName destinationTranslatedAddress=destinationTranslatedAddress destinationTranslatedPort=destinationTranslatedPort deviceCustomDate1=deviceCustomDate1 deviceCustomDate1Label=deviceCustomDate1Label deviceCustomDate2=deviceCustomDate2 deviceCustomDate2Label=deviceCustomDate2Label deviceDirection=deviceDirection deviceDnsDomain=deviceDnsDomain deviceExternalId=deviceExternalId deviceFacility=deviceFacility deviceInboundInterface=deviceInboundInterface deviceNtDomain=deviceNtDomain deviceOutboundInterface=deviceOutboundInterface DevicePayloadId=devicePayloadId deviceProcessName=deviceProcessName deviceTranslatedAddress=deviceTranslatedAddress dhost=destinationHostName dntdom=destinationNtDomain dpid=destinationProcessId dpriv=destinationUserPrivileges dproc=destinationProcessName dpt=destinationPort dst=destinationAddress dtz=deviceTimeZone duid=destinationUserId duser=destinationUserName dvc=deviceAddress dvchost=deviceHostName dmac=destinationMacAddress dvcpid=deviceProcessId end=endTime externalId=externalId fileCreateTime=fileCreateTime fileHash=fileHash fileId=fileId fileModificationTime=fileModificationTime filePath=filePath filePermission=filePermission fileType=fileType flexDate1=flexDate1 flexDate1Label=flexDate1Label flexString1=flexString1 flexString1Label=flexString1Label flexString2=flexString2 flexString2Label=flexString2Label fname=fileName fsize=fileSize in=bytesIn msg=message oldFileCreateTime=oldFileCreateTime oldFileHash=oldFileHash oldFileId=oldFileId oldFileModificationTime=oldFileModificationTime oldFileName=oldFileName oldFilePath=oldFilePath oldFilePermission=oldFilePermission oldFileSize=oldFileSize oldFileType=oldFileType out=bytesOut outcome=eventOutcome proto=transportProtocol reason=reason request=requestUrl requestClientApplication=requestClientApplication requestContext=requestContext requestCookies=requestCookies requestMethod=requestMethod rt=deviceReceiptTime shost=sourceHostName smac=sourceMacAddress sntdom=sourceNtDomain sourceDnsDomain=sourceDnsDomain sourceServiceName=sourceServiceName sourceTranslatedAddress=sourceTranslatedAddress sourceTranslatedPort=sourceTranslatedPort spid=sourceProcessId spriv=sourceUserPrivileges sproc=sourceProcessName spt=sourcePort src=sourceAddress start=startTime suid=sourceUserId suser=sourceUserName type=type",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "10"],
+    "pairs": [
+      ["act", "deviceAction"],
+      ["app", "applicationProtocol"],
+      ["c6a1", "deviceCustomIPv6Address1"],
+      ["c6a1Label", "deviceCustomIPv6Address1Label"],
+      ["c6a3", "deviceCustomIPv6Address3"],
+      ["c6a3Label", "deviceCustomIPv6AddressLabel"],
+      ["c6a4", "deviceCustomIPv6Address4"],
+      ["c6a4Label", "deviceCustomIPv6Address4Label"],
+      ["cat", "deviceEventCategory"],
+      ["cfp1", "deviceCustomFloatingPoint1"],
+      ["cfp1Label", "deviceCustoFloatingPoint1Label"],
+      ["cfp2", "deviceCustomFloatingPoint2"],
+      ["cfp2Label", "deviceCustomFloatingPoint2Label"],
+      ["cfp3", "deviceCustomFloatingPoint3"],
+      ["cfp3Label", "deviceCustomFloatingPoint3Label"],
+      ["cfp4", "deviceCustomFloatingPoint4"],
+      ["cfp4Label", "deviceCustomFloatingPoint4Label"],
+      ["cn1", "deviceCustomNumber1"],
+      ["cn1Label", "deviceCustomNumber1Label"],
+      ["cn2", "deviceCustomNumber2"],
+      ["cn2Label", "deviceCustomNumber2Label"],
+      ["cn3", "deviceCustomNumber3"],
+      ["cn3Label", "deviceCustomNumber3Label"],
+      ["cnt", "baseEventCount"],
+      ["cs1", "deviceCustomString1"],
+      ["cs1Label", "deviceCustomString1Label"],
+      ["cs2", "deviceCustomString2"],
+      ["cs2Label", "deviceCustomString2Label"],
+      ["cs3", "deviceCustomString3"],
+      ["cs3Label", "deviceCustomString3Label"],
+      ["cs4", "deviceCustomString4"],
+      ["cs4Label", "deviceCustomString4Label"],
+      ["cs5", "deviceCustomString5"],
+      ["cs5Label", "deviceCustomString5Label"],
+      ["cs6", "deviceCustomString6"],
+      ["cs6Label", "deviceCustomString6Label"],
+      ["destinationDnsDomain", "destinationDnsDomain"],
+      ["destinationServiceName", "destinationServiceName"],
+      ["destinationTranslatedAddress", "destinationTranslatedAddress"],
+      ["destinationTranslatedPort", "destinationTranslatedPort"],
+      ["deviceCustomDate1", "deviceCustomDate1"],
+      ["deviceCustomDate1Label", "deviceCustomDate1Label"],
+      ["deviceCustomDate2", "deviceCustomDate2"],
+      ["deviceCustomDate2Label", "deviceCustomDate2Label"],
+      ["deviceDirection", "deviceDirection"],
+      ["deviceDnsDomain", "deviceDnsDomain"],
+      ["deviceExternalId", "deviceExternalId"],
+      ["deviceFacility", "deviceFacility"],
+      ["deviceInboundInterface", "deviceInboundInterface"],
+      ["deviceNtDomain", "deviceNtDomain"],
+      ["deviceOutboundInterface", "deviceOutboundInterface"],
+      ["DevicePayloadId", "devicePayloadId"],
+      ["deviceProcessName", "deviceProcessName"],
+      ["deviceTranslatedAddress", "deviceTranslatedAddress"],
+      ["dhost", "destinationHostName"],
+      ["dntdom", "destinationNtDomain"],
+      ["dpid", "destinationProcessId"],
+      ["dpriv", "destinationUserPrivileges"],
+      ["dproc", "destinationProcessName"],
+      ["dpt", "destinationPort"],
+      ["dst", "destinationAddress"],
+      ["dtz", "deviceTimeZone"],
+      ["duid", "destinationUserId"],
+      ["duser", "destinationUserName"],
+      ["dvc", "deviceAddress"],
+      ["dvchost", "deviceHostName"],
+      ["dmac", "destinationMacAddress"],
+      ["dvcpid", "deviceProcessId"],
+      ["end", "endTime"],
+      ["externalId", "externalId"],
+      ["fileCreateTime", "fileCreateTime"],
+      ["fileHash", "fileHash"],
+      ["fileId", "fileId"],
+      ["fileModificationTime", "fileModificationTime"],
+      ["filePath", "filePath"],
+      ["filePermission", "filePermission"],
+      ["fileType", "fileType"],
+      ["flexDate1", "flexDate1"],
+      ["flexDate1Label", "flexDate1Label"],
+      ["flexString1", "flexString1"],
+      ["flexString1Label", "flexString1Label"],
+      ["flexString2", "flexString2"],
+      ["flexString2Label", "flexString2Label"],
+      ["fname", "fileName"],
+      ["fsize", "fileSize"],
+      ["in", "bytesIn"],
+      ["msg", "message"],
+      ["oldFileCreateTime", "oldFileCreateTime"],
+      ["oldFileHash", "oldFileHash"],
+      ["oldFileId", "oldFileId"],
+      ["oldFileModificationTime", "oldFileModificationTime"],
+      ["oldFileName", "oldFileName"],
+      ["oldFilePath", "oldFilePath"],
+      ["oldFilePermission", "oldFilePermission"],
+      ["oldFileSize", "oldFileSize"],
+      ["oldFileType", "oldFileType"],
+      ["out", "bytesOut"],
+      ["outcome", "eventOutcome"],
+      ["proto", "transportProtocol"],
+      ["reason", "reason"],
+      ["request", "requestUrl"],
+      ["requestClientApplication", "requestClientApplication"],
+      ["requestContext", "requestContext"],
+      ["requestCookies", "requestCookies"],
+      ["requestMethod", "requestMethod"],
+      ["rt", "deviceReceiptTime"],
+      ["shost", "sourceHostName"],
+      ["smac", "sourceMacAddress"],
+      ["sntdom", "sourceNtDomain"],
+      ["sourceDnsDomain", "sourceDnsDomain"],
+      ["sourceServiceName", "sourceServiceName"],
+      ["sourceTranslatedAddress", "sourceTranslatedAddress"],
+      ["sourceTranslatedPort", "sourceTranslatedPort"],
+      ["spid", "sourceProcessId"],
+      ["spriv", "sourceUserPrivileges"],
+      ["sproc", "sourceProcessName"],
+      ["spt", "sourcePort"],
+      ["src", "sourceAddress"],
+      ["start", "startTime"],
+      ["suid", "sourceUserId"],
+      ["suser", "sourceUserName"],
+      ["type", "type"]
+    ]
+  },
+  {
+    "name": "v27 p.38: every consumer key of the dictionary",
+    "line": "CEF:0|Security|threatmanager|1.0|100|worm successfully stopped|10|agentDnsDomain=agentDnsDomain agentNtDomain=agentNtDomain agentTranslatedAddress=agentTranslatedAddress agentTranslatedZoneExternalID=agentTranslatedZoneExternalID agentTranslatedZoneURI=agentTranslatedZoneURI agentZoneExternalID=agentZoneExternalID agentZoneURI=agentZoneURI agt=agentAddress ahost=agentHostName aid=agentId amac=agentMacAddress art=agentReceiptTime at=agentType atz=agentTimeZone av=agentVersion customerExternalID=customerExternalID customerURI=customerURI destinationTranslatedZoneExternalID=destinationTranslatedZoneExternalID destinationTranslatedZoneURI=destinationTranslatedZoneURI destinationZoneExternalID=destinationZoneExternalID destinationZoneURI=destinationZoneURI deviceTranslatedZoneExternalID=deviceTranslatedZoneExternalID deviceTranslatedZoneURI=deviceTranslatedZoneURI deviceZoneExternalID=deviceZoneExternalID deviceZoneURI=deviceZoneURI dlat=destinationGeoLatitude dlong=destinationGeoLongitude eventId=eventId rawEvent=rawEvent slat=sourceGeoLatitude slong=sourceGeoLongitude sourceTranslatedZoneExternalID=sourceTranslatedZoneExternalID sourceTranslatedZoneURI=sourceTranslatedZoneURI sourceZoneExternalID=sourceZoneExternalID sourceZoneURI=sourceZoneURI agentTranslatedZoneKey=agentTranslatedZoneKey agentZoneKey=agentZoneKey customerKey=customerKey destinationTranslatedZoneKey=destinationTranslatedZoneKey dZoneKey=destinationZoneKey deviceTranslatedZoneKey=deviceTranslatedZoneKey deviceZoneKey=deviceZoneKey sTranslatedZoneKey=sourceTranslatedZoneKey sZoneKey=sourceZoneKey parserVersion=parserVersion parserIdentifier=parserIdentifier",
+    "version": 0,
+    "header": ["Security", "threatmanager", "1.0", "100", "worm successfully stopped", "10"],
+    "pairs": [
+      ["agentDnsDomain", "agentDnsDomain"],
+      ["agentNtDomain", "agentNtDomain"],
+      ["agentTranslatedAddress", "agentTranslatedAddress"],
+      ["agentTranslatedZoneExternalID", "agentTranslatedZoneExternalID"],
+      ["agentTranslatedZoneURI", "agentTranslatedZoneURI"],
+      ["agentZoneExternalID", "agentZoneExternalID"],
+      ["agentZoneURI", "agentZoneURI"],
+      ["agt", "agentAddress"],
+      ["ahost", "agentHostName"],
+      ["aid", "agentId"],
+      ["amac", "agentMacAddress"],
+      ["art", "agentReceiptTime"],
+      ["at", "agentType"],
+      ["atz", "agentTimeZone"],
+      ["av", "agentVersion"],
+      ["customerExternalID", "customerExternalID"],
+      ["customerURI", "customerURI"],
+      ["destinationTranslatedZoneExternalID", "destinationTranslatedZoneExternalID"],
+      ["destinationTranslatedZoneURI", "destinationTranslatedZoneURI"],
+      ["destinationZoneExternalID", "destinationZoneExternalID"],
+      ["destinationZoneURI", "destinationZoneURI"],
+      ["deviceTranslatedZoneExternalID", "deviceTranslatedZoneExternalID"],
+      ["deviceTranslatedZoneURI", "deviceTranslatedZoneURI"],
+      ["deviceZoneExternalID", "deviceZoneExternalID"],
+      ["deviceZoneURI", "deviceZoneURI"],
+      ["dlat", "destinationGeoLatitude"],
+      ["dlong", "destinationGeoLongitude"],
+      ["eventId", "eventId"],
+      ["rawEvent", "rawEvent"],
+      ["slat", "sourceGeoLatitude"],
+      ["slong", "sourceGeoLongitude"],
+      ["sourceTranslatedZoneExternalID", "sourceTranslatedZoneExternalID"],
+      ["sourceTranslatedZoneURI", "sourceTranslatedZoneURI"],
+      ["sourceZoneExternalID", "sourceZoneExternalID"],
+      ["sourceZoneURI", "sourceZoneURI"],
+      ["agentTranslatedZoneKey", "agentTranslatedZoneKey"],
+      ["agentZoneKey", "agentZoneKey"],
+      ["customerKey", "customerKey"],
+      ["destinationTranslatedZoneKey", "destinationTranslatedZoneKey"],
+      ["dZoneKey", "destinationZoneKey"],
+      ["deviceTranslatedZoneKey", "deviceTranslatedZoneKey"],
+      ["deviceZoneKey", "deviceZoneKey"],
+      ["sTranslatedZoneKey", "sourceTranslatedZoneKey"],
+      ["sZoneKey", "sourceZoneKey"],
+      ["parserVersion", "parserVersion"],
+      ["parserIdentifier", "parserIdentifier"]
+    ]
+  },
+  {
+    "name": "Microsoft Learn Sentinel: the test message with its priority",
+    "line": "<164>CEF:0|Mock-test|MOCK|common=event-format-test|end|TRAFFIC|1|rt=$common=event-formatted-receive_time",
+    "fault": "ErrPrefix",
+    "version": 0,
+    "header": ["", "", "", "", "", ""]
+  },
+  {
+    "name": "Microsoft Learn Sentinel: the test message, = in header and value",
+    "line": "CEF:0|Mock-test|MOCK|common=event-format-test|end|TRAFFIC|1|rt=$common=event-formatted-receive_time",
+    "version": 0,
+    "header": ["Mock-test", "MOCK", "common=event-format-test", "end", "TRAFFIC", "1"],
+    "pairs": [
+      ["rt", "$common=event-formatted-receive_time"]
+    ]
+  },
+  {
+    "name": "Microsoft Learn Sentinel: the logger message, which lacks a field",
+    "line": "CEF: 0|Mock-test|MOCK|common=event-format-test|end|TRAFFIC|rt=$common=event-formatted-receive_time",
+    "fault": "ErrIncompleteHeader",
+    "version": 0,
+    "header": ["Mock-test", "MOCK", "common=event-format-test", "end", "TRAFFIC", "rt=$common=event-formatted-receive_time"]
+  },
+  {
+    "name": "Microsoft Learn ATA: an RFC 5424 syslog header before CEF:",
+    "line": "1 2018-12-12T16:53:22.925757+00:00 CENTER ATA 4688 AbnormalSensitiveGroupMembership CEF:0|Microsoft|ATA|1.9.0.0|AbnormalSensitiveGroupMembershipChangeSuspiciousActivity|Abnormal modification of sensitive groups|5|start=2018-12-12T18:52:58.0000000Z app=GroupMembershipChangeEvent suser=krbtgt msg=krbtgt has uncharacteristically modified sensitive group memberships. externalId=2024 cs1Label=url cs1=https\\://192.168.0.220/suspiciousActivity/5c113d028ca1ec1250ca0491",
+    "fault": "ErrPrefix",
+    "version": 0,
+    "header": ["", "", "", "", "", ""]
+  },
+  {
+    "name": "Microsoft Learn ATA: a group change alert, \\: kept",
+    "line": "CEF:0|Microsoft|ATA|1.9.0.0|AbnormalSensitiveGroupMembershipChangeSuspiciousActivity|Abnormal modification of sensitive groups|5|start=2018-12-12T18:52:58.0000000Z app=GroupMembershipChangeEvent suser=krbtgt msg=krbtgt has uncharacteristically modified sensitive group memberships. externalId=2024 cs1Label=url cs1=https\\://192.168.0.220/suspiciousActivity/5c113d028ca1ec1250ca0491",
+    "version": 0,
+    "header": ["Microsoft", "ATA", "1.9.0.0", "AbnormalSensitiveGroupMembershipChangeSuspiciousActivity", "Abnormal modification of sensitive groups", "5"],
+    "pairs": [
+      ["start", "2018-12-12T18:52:58.0000000Z"],
+      ["app", "GroupMembershipChangeEvent"],
+      ["suser", "krbtgt"],
+      ["msg", "krbtgt has uncharacteristically modified sensitive group memberships."],
+      ["externalId", "2024"],
+      ["cs1Label", "url"],
+      ["cs1", "https\\://192.168.0.220/suspiciousActivity/5c113d028ca1ec1250ca0491"]
+    ]
+  },
+  {
+    "name": "Microsoft Learn ATA: a monitoring alert, colons and spaces in the last value",
+    "line": "CEF:0|Microsoft|ATA|1.9.0.0|GatewayDisconnectedMonitoringAlert|GatewayDisconnectedMonitoringAlert|5|externalId=1011 cs1Label=url cs1=https\\://192.168.0.220/monitoring msg=There has not been communication from the Gateway CENTER for 5 minutes. Last communication was on 12/12/2018 4:47:03 PM UTC.",
+    "version": 0,
+    "header": ["Microsoft", "ATA", "1.9.0.0", "GatewayDisconnectedMonitoringAlert", "GatewayDisconnectedMonitoringAlert", "5"],
+    "pairs": [
+      ["externalId", "1011"],
+      ["cs1Label", "url"],
+      ["cs1", "https\\://192.168.0.220/monitoring"],
+      ["msg", "There has not been communication from the Gateway CENTER for 5 minutes. Last communication was on 12/12/2018 4:47:03 PM UTC."]
+    ]
+  }
+]
