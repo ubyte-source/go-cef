@@ -383,20 +383,20 @@ on that shape.
 | pcktdmp/cef | v0.6.1 | the Read method of its event |
 | ren3gadem4rm0t/cef-parser-go | v0.2.0 | its default ParseCEF, and its fast configuration |
 
-Time per event, and its ratio to go-cef:
+Nanoseconds per event, lower is faster, and in brackets the time as a multiple of go-cef's:
 
 | Library | header | firewall | panos106 | escapes | longvalues | spec7 |
 |---------|-------:|---------:|---------:|--------:|-----------:|------:|
-| go-cef | 31.9 ns | 425 ns | 1.61 µs | 390 ns | 1.02 µs | 462 ns |
-| go-cef+decode | 62.6 ns (2.0x) | 631 ns (1.5x) | 2.35 µs (1.5x) | 1.05 µs (2.7x) | 2.12 µs (2.1x) | 883 ns (1.9x) |
-| VictoriaLogs | 87.5 ns (2.7x) | 1.55 µs (3.6x) | 6.31 µs (3.9x) | 2.16 µs (5.5x) | 3.05 µs (3.0x) | 1.80 µs (3.9x) † |
-| Datadog Agent | 198 ns (6.2x) | 1.85 µs (4.4x) | 6.76 µs (4.2x) | 3.44 µs (8.8x) | 13.7 µs (13.4x) | 3.90 µs (8.4x) |
-| Elastic Beats | 202 ns (6.3x) | 6.04 µs (14.2x) | 32.5 µs (20.2x) † | 11.0 µs (28.3x) | 27.9 µs (27.4x) | 6.24 µs (13.5x) |
-| OpenTelemetry | 972 ns (30.4x) | 3.38 µs (7.9x) | 14.2 µs (8.9x) | 5.50 µs (14.1x) | 27.5 µs (27.0x) | 9.37 µs (20.3x) |
-| lynxdb | 176 ns (5.5x) | 2.83 µs (6.7x) † | 11.6 µs (7.2x) † | 5.32 µs (13.6x) † | 37.2 µs (36.6x) † | 5.63 µs (12.2x) † |
-| pcktdmp | 979 ns (30.7x) | 22.3 µs (52.4x) | 83.0 µs (51.6x) | 37.5 µs (96.3x) † | 380 µs (374x) | 24.5 µs (53.0x) |
-| ren3gadem4rm0t, fast | 292 ns (9.1x) | 6.12 µs (14.4x) † | 22.7 µs (14.1x) † | 6.85 µs (17.6x) † | 33.7 µs (33.1x) † | 5.74 µs (12.4x) † |
-| ren3gadem4rm0t | 19.2 µs (601x) | 22.4 µs (52.7x) † | 64.2 µs (40.0x) † | 25.3 µs (65.0x) † | 130 µs (127x) † | 131 µs (283x) † |
+| go-cef | 31.9 | 425 | 1,608 | 390 | 1,018 | 462 |
+| go-cef+decode | 62.6 (2.0×) | 631 (1.5×) | 2,351 (1.5×) | 1,049 (2.7×) | 2,122 (2.1×) | 883 (1.9×) |
+| VictoriaLogs | 87.5 (2.7×) | 1,548 (3.6×) | 6,309 (3.9×) | 2,163 (5.5×) | 3,048 (3.0×) | 1,796 (3.9×) † |
+| Datadog Agent | 198 (6.2×) | 1,854 (4.4×) | 6,765 (4.2×) | 3,444 (8.8×) | 13,660 (13.4×) | 3,900 (8.4×) |
+| Elastic Beats | 202 (6.3×) | 6,039 (14.2×) | 32,477 (20.2×) † | 11,042 (28.3×) | 27,930 (27.4×) | 6,244 (13.5×) |
+| OpenTelemetry | 972 (30.4×) | 3,376 (7.9×) | 14,242 (8.9×) | 5,503 (14.1×) | 27,537 (27.1×) | 9,370 (20.3×) |
+| lynxdb | 176 (5.5×) | 2,830 (6.7×) † | 11,567 (7.2×) † | 5,316 (13.6×) † | 37,215 (36.6×) † | 5,633 (12.2×) † |
+| pcktdmp | 979 (30.7×) | 22,278 (52.4×) | 82,960 (51.6×) | 37,520 (96.3×) † | 380,282 (374×) | 24,474 (53.0×) |
+| ren3gadem4rm0t, fast | 292 (9.1×) | 6,120 (14.4×) † | 22,714 (14.1×) † | 6,849 (17.6×) † | 33,697 (33.1×) † | 5,741 (12.4×) † |
+| ren3gadem4rm0t | 19,190 (601×) | 22,406 (52.7×) † | 64,242 (40.0×) † | 25,318 (65.0×) † | 129,468 (127×) † | 130,658 (283×) † |
 
 Allocations per event: go-cef and go-cef+decode allocate nothing on every shape, VictoriaLogs and
 lynxdb nothing on `header` only, and the others from 1 (Beats, `header`) to 1735 (ren3gadem4rm0t,
