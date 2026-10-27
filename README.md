@@ -293,18 +293,18 @@ pairs, `EqualsRun` a value of 1000 `=` and `EscapedPipes` a header field of 1000
 are fields with no escape, a few and nothing but escapes. The cases that allocate are the ones that
 return a new string, byte slice or Event by design.
 
-| Benchmark | ns/op | MB/s | B/op | allocs/op |
-|-----------|------:|-----:|-----:|----------:|
-| `EventParse/Minimal` | 28.4 | 1,412 | 0 | 0 |
-| `EventParse/HeaderOnly` | 25.2 | 1,431 | 0 | 0 |
-| `EventParse/CiscoASA` | 139 | 1,156 | 0 | 0 |
-| `EventParse/PaloAlto` | 153 | 1,229 | 0 | 0 |
-| `EventParse/Escaped` | 102 | 1,328 | 0 | 0 |
-| `EventParse/Pairs58` | 660 | 1,466 | 0 | 0 |
-| `EventParse/Pairs106` | 1,156 | 1,521 | 0 | 0 |
-| `EventParse/Pairs171` | 1,752 | 1,644 | 0 | 0 |
-| `EventParse/EqualsRun` | 8,478 | 358 | 0 | 0 |
-| `EventParse/EscapedPipes` | 682 | 2,959 | 0 | 0 |
+| Benchmark | Time [ns/op] | Throughput [MB/s] | Allocated [B/op] | Allocations [allocs/op] |
+|-----------|-------------:|------------------:|-----------------:|------------------------:|
+| `EventParse/Minimal` | 28.4 | 1412 | 0 | 0 |
+| `EventParse/HeaderOnly` | 25.2 | 1431 | 0 | 0 |
+| `EventParse/CiscoASA` | 139 | 1156 | 0 | 0 |
+| `EventParse/PaloAlto` | 153 | 1229 | 0 | 0 |
+| `EventParse/Escaped` | 102 | 1328 | 0 | 0 |
+| `EventParse/Pairs58` | 660 | 1466 | 0 | 0 |
+| `EventParse/Pairs106` | 1156 | 1521 | 0 | 0 |
+| `EventParse/Pairs171` | 1752 | 1644 | 0 | 0 |
+| `EventParse/EqualsRun` | 8478 | 358 | 0 | 0 |
+| `EventParse/EscapedPipes` | 682 | 2959 | 0 | 0 |
 | `EventAccessors` | 2.51 | | 0 | 0 |
 | `EventExt` | 6.84 | | 0 | 0 |
 | `EventExtString/key0` | 12.8 | | 0 | 0 |
@@ -322,19 +322,19 @@ return a new string, byte slice or Event by design.
 | `EventSeverityLevel/Very-High` | 3.67 | | 0 | 0 |
 | `EventSeverityLevel/bogus` | 2.53 | | 0 | 0 |
 | `LevelString` | 1.22 | | 0 | 0 |
-| `UnescapeHeader/Clean` | 5.01 | 9,981 | 0 | 0 |
-| `UnescapeHeader/Typical` | 38.8 | 1,339 | 0 | 0 |
-| `UnescapeHeader/Dense` | 842 | 1,217 | 0 | 0 |
-| `UnescapeExtValue/Clean` | 5.08 | 9,845 | 0 | 0 |
-| `UnescapeExtValue/Typical` | 37.8 | 1,375 | 0 | 0 |
-| `UnescapeExtValue/Dense` | 847 | 1,210 | 0 | 0 |
-| `AppendEscapedHeader/Clean` | 24.6 | 2,033 | 0 | 0 |
-| `AppendEscapedHeader/Escaped` | 30.6 | 1,242 | 0 | 0 |
-| `AppendEscapedExtValue/Clean` | 23.0 | 2,173 | 0 | 0 |
-| `AppendEscapedExtValue/Escaped` | 36.3 | 1,270 | 0 | 0 |
+| `UnescapeHeader/Clean` | 5.01 | 9981 | 0 | 0 |
+| `UnescapeHeader/Typical` | 38.8 | 1339 | 0 | 0 |
+| `UnescapeHeader/Dense` | 842 | 1217 | 0 | 0 |
+| `UnescapeExtValue/Clean` | 5.08 | 9845 | 0 | 0 |
+| `UnescapeExtValue/Typical` | 37.8 | 1375 | 0 | 0 |
+| `UnescapeExtValue/Dense` | 847 | 1210 | 0 | 0 |
+| `AppendEscapedHeader/Clean` | 24.6 | 2033 | 0 | 0 |
+| `AppendEscapedHeader/Escaped` | 30.6 | 1242 | 0 | 0 |
+| `AppendEscapedExtValue/Clean` | 23.0 | 2173 | 0 | 0 |
+| `AppendEscapedExtValue/Escaped` | 36.3 | 1270 | 0 | 0 |
 | `ValidKey` | 15.2 | | 0 | 0 |
 | `EventClone/10` | 155 | | 464 | 3 |
-| `EventClone/58` | 550 | | 2,176 | 3 |
+| `EventClone/58` | 550 | | 2176 | 3 |
 | `EventCloneTo/10` | 26.2 | | 0 | 0 |
 | `EventCloneTo/58` | 75.9 | | 0 | 0 |
 | `EventAppendText` | 32.6 | | 0 | 0 |
@@ -350,10 +350,10 @@ return a new string, byte slice or Event by design.
 | `ParseErrorError` | 34.2 | | 48 | 1 |
 | `ParseErrorUnwrap` | 1.01 | | 0 | 0 |
 | `ConstErrorError` | 1.62 | | 0 | 0 |
-| `WordAt/Own` | 17.0 | 4,364 | 0 | 0 |
-| `WordAt/SharedForm` | 27.1 | 2,734 | 0 | 0 |
-| `TextWord/Own` | 15.5 | 3,092 | 0 | 0 |
-| `TextWord/SharedForm` | 23.2 | 2,073 | 0 | 0 |
+| `WordAt/Own` | 17.0 | 4364 | 0 | 0 |
+| `WordAt/SharedForm` | 27.1 | 2734 | 0 | 0 |
+| `TextWord/Own` | 15.5 | 3092 | 0 | 0 |
+| `TextWord/SharedForm` | 23.2 | 2073 | 0 | 0 |
 
 ### Other Go CEF parsers
 
@@ -383,20 +383,20 @@ on that shape.
 | pcktdmp/cef | v0.6.1 | the Read method of its event |
 | ren3gadem4rm0t/cef-parser-go | v0.2.0 | its default ParseCEF, and its fast configuration |
 
-Nanoseconds per event, lower is faster, and in brackets the time as a multiple of go-cef's:
+Time per event, lower is faster:
 
-| Library | header | firewall | panos106 | escapes | longvalues | spec7 |
-|---------|-------:|---------:|---------:|--------:|-----------:|------:|
-| go-cef | 31.9 | 425 | 1,608 | 390 | 1,018 | 462 |
-| go-cef+decode | 62.6 (2.0×) | 631 (1.5×) | 2,351 (1.5×) | 1,049 (2.7×) | 2,122 (2.1×) | 883 (1.9×) |
-| VictoriaLogs | 87.5 (2.7×) | 1,548 (3.6×) | 6,309 (3.9×) | 2,163 (5.5×) | 3,048 (3.0×) | 1,796 (3.9×) † |
-| Datadog Agent | 198 (6.2×) | 1,854 (4.4×) | 6,765 (4.2×) | 3,444 (8.8×) | 13,660 (13.4×) | 3,900 (8.4×) |
-| Elastic Beats | 202 (6.3×) | 6,039 (14.2×) | 32,477 (20.2×) † | 11,042 (28.3×) | 27,930 (27.4×) | 6,244 (13.5×) |
-| OpenTelemetry | 972 (30.4×) | 3,376 (7.9×) | 14,242 (8.9×) | 5,503 (14.1×) | 27,537 (27.1×) | 9,370 (20.3×) |
-| lynxdb | 176 (5.5×) | 2,830 (6.7×) † | 11,567 (7.2×) † | 5,316 (13.6×) † | 37,215 (36.6×) † | 5,633 (12.2×) † |
-| pcktdmp | 979 (30.7×) | 22,278 (52.4×) | 82,960 (51.6×) | 37,520 (96.3×) † | 380,282 (374×) | 24,474 (53.0×) |
-| ren3gadem4rm0t, fast | 292 (9.1×) | 6,120 (14.4×) † | 22,714 (14.1×) † | 6,849 (17.6×) † | 33,697 (33.1×) † | 5,741 (12.4×) † |
-| ren3gadem4rm0t | 19,190 (601×) | 22,406 (52.7×) † | 64,242 (40.0×) † | 25,318 (65.0×) † | 129,468 (127×) † | 130,658 (283×) † |
+| Library | header [ns] | firewall [ns] | panos106 [ns] | escapes [ns] | longvalues [ns] | spec7 [ns] |
+|---------|------------:|--------------:|--------------:|-------------:|----------------:|-----------:|
+| go-cef | 31.9 | 425 | 1608 | 390 | 1018 | 462 |
+| go-cef+decode | 62.6 | 631 | 2351 | 1049 | 2122 | 883 |
+| VictoriaLogs | 87.5 | 1548 | 6309 | 2163 | 3048 | 1796 † |
+| Datadog Agent | 198 | 1854 | 6765 | 3444 | 13660 | 3900 |
+| Elastic Beats | 202 | 6039 | 32477 † | 11042 | 27930 | 6244 |
+| OpenTelemetry | 972 | 3376 | 14242 | 5503 | 27537 | 9370 |
+| lynxdb | 176 | 2830 † | 11567 † | 5316 † | 37215 † | 5633 † |
+| pcktdmp | 979 | 22278 | 82960 | 37520 † | 380282 | 24474 |
+| ren3gadem4rm0t, fast | 292 | 6120 † | 22714 † | 6849 † | 33697 † | 5741 † |
+| ren3gadem4rm0t | 19190 | 22406 † | 64242 † | 25318 † | 129468 † | 130658 † |
 
 Allocations per event: go-cef and go-cef+decode allocate nothing on every shape, VictoriaLogs and
 lynxdb nothing on `header` only, and the others from 1 (Beats, `header`) to 1735 (ren3gadem4rm0t,
