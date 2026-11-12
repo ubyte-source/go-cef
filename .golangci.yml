@@ -115,10 +115,6 @@ linters:
           arguments:
             - "^fmt\\.Print(f|ln)$"
             - "^strings\\.Builder\\.Write(Byte|String)?$"
-        # Every Event method takes a pointer, MarshalText included: a value receiver
-        # would copy the whole Event on each call.
-        - name: marshal-receiver
-          exclude: ["~(^|/)cef\\.go$"]
         # One measure, one limit: the thresholds of gocognit, funlen and lll.
         - name: cognitive-complexity
           arguments: [20]

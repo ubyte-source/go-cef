@@ -297,6 +297,8 @@ func versionLen(v uint16) int {
 
 // MarshalText returns AppendText(nil), the text UnmarshalText reads back to an Event
 // equal to e: one allocation, and nil with AppendText's error on failure.
+//
+//nolint:revive // every Event method takes a pointer; by value a call passes the whole Event
 func (e *Event) MarshalText() ([]byte, error) { return e.AppendText(nil) }
 
 // UnmarshalText copies text into bytes e owns and parses the copy under MaxExtensions,
