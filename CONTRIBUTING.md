@@ -2,16 +2,16 @@
 
 ## Prerequisites
 
-- Go 1.25 or later, the version in `go.mod`; CI tests on Go 1.25.14 and Go 1.27.3. The race detector
+- Go 1.25 or later, the version in `go.mod`; CI tests on Go 1.25.14 and Go 1.27.4. The race detector
   needs cgo.
 - make, and jq for `make testtime`.
 
-The Makefile runs every tool at a pinned version through `go run`: golangci-lint v2.14.0,
-govulncheck v1.8.0, deadcode v0.50.0 and nilaway v0.0.0-20260918162853-acb8859b9031. Nothing needs a
+The Makefile runs every tool at a pinned version through `go run`: golangci-lint v2.15.0,
+govulncheck v1.9.0, deadcode v0.52.0 and nilaway v0.0.0-20261112030514-ccd005690d1e. Nothing needs a
 global install; `GOLANGCI_LINT=<path>`, `GOVULNCHECK=<path>`, `DEADCODE=<path>` and `NILAWAY=<path>`
 point the targets at local binaries of the same versions. golangci-lint builds and runs with Go
-1.27.3 (`GOTOOLCHAIN=go1.27.3`), and so does the fuzzer of `make fuzz`; deadcode needs Go 1.26 or
-later, so `lint.yml` runs it on Go 1.27.3. The go command fetches a missing toolchain.
+1.27.4 (`GOTOOLCHAIN=go1.27.4`), and so does the fuzzer of `make fuzz`; deadcode needs Go 1.26 or
+later, so `lint.yml` runs it on Go 1.27.4. The go command fetches a missing toolchain.
 
 ```bash
 git clone https://github.com/ubyte-source/go-cef.git
@@ -28,16 +28,16 @@ make ci
 4. Open a pull request describing what changes, why, and how it was tested.
 
 `make ci` runs these targets, and the workflows run the same ones: `lint.yml` runs `lint` and
-`deadcode` on Go 1.27.3, `test.yml` runs `modcheck`, `vet`, `test`, `test386`, `cover` and
-`bench-smoke` on Go 1.25.14 and 1.27.3, and `security.yml` runs `vuln` next to CodeQL.
+`deadcode` on Go 1.27.4, `test.yml` runs `modcheck`, `vet`, `test`, `test386`, `cover` and
+`bench-smoke` on Go 1.25.14 and 1.27.4, and `security.yml` runs `vuln` next to CodeQL.
 
 | Target        | Gate |
 |---------------|------|
 | `modcheck`    | `go mod download`, `go mod verify` and `go mod tidy -diff` |
 | `vet`         | `go vet ./...` |
-| `lint`        | golangci-lint v2.14.0 with `.golangci.yml`, test files included (gosec runs inside it) |
-| `vuln`        | govulncheck v1.8.0 on the module and the toolchain |
-| `deadcode`    | deadcode v0.50.0 `-test ./...`; any output fails |
+| `lint`        | golangci-lint v2.15.0 with `.golangci.yml`, test files included (gosec runs inside it) |
+| `vuln`        | govulncheck v1.9.0 on the module and the toolchain |
+| `deadcode`    | deadcode v0.52.0 `-test ./...`; any output fails |
 | `test`        | the tests with `-shuffle=on`; this run and `test386` check the allocation counts, which the race detector changes |
 | `test386`     | the tests with `GOARCH=386`, so 32-bit arithmetic is gated |
 | `race`        | the tests with `-race`, `-shuffle=on` and `CGO_ENABLED=1`, writing `coverage.out` |

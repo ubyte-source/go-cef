@@ -102,15 +102,15 @@ the sentinel of that limit, and `UnmarshalText`, `AppendText` and `MarshalText` 
 - `make modcheck` (`go mod download`, `go mod verify`, `go mod tidy -diff`), `make vet`, `make test`
   and `make test386` (the tests with `-shuffle=on` and their allocation counts, on amd64 and on
   386), `make cover` (the tests with `-race` and `-shuffle=on`, failing on any statement they leave
-  uncovered) and `make bench-smoke` (100 iterations of every benchmark) on Go 1.25.14 and Go 1.27.3
+  uncovered) and `make bench-smoke` (100 iterations of every benchmark) on Go 1.25.14 and Go 1.27.4
   (`test.yml`).
-- `golangci-lint` v2.14.0, built with Go 1.27.3 (`lint.yml`, `make lint`), with the repository
+- `golangci-lint` v2.15.0, built with Go 1.27.4 (`lint.yml`, `make lint`), with the repository
   `.golangci.yml`: every linter of its enable list and the `gofmt` and `goimports` formatters,
   `gosec` included, test files linted. The `depguard` rule `unsafe` denies `unsafe` to every file.
   Every `nolint` directive names its linter and gives a reason.
-- `deadcode -test` v0.50.0 (`lint.yml`, `make deadcode`): no function that neither a test nor an
+- `deadcode -test` v0.52.0 (`lint.yml`, `make deadcode`): no function that neither a test nor an
   entry point reaches.
-- `govulncheck` v1.8.0 and CodeQL with the `security-and-quality` suite (`security.yml`).
+- `govulncheck` v1.9.0 and CodeQL with the `security-and-quality` suite (`security.yml`).
 - Every action is pinned by commit with its version, every workflow has top-level permissions no
   wider than `contents: read` (CodeQL's in `security.yml`), and every checkout leaves no credentials
   behind.
