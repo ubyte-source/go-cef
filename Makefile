@@ -75,7 +75,7 @@ testtime: ## Fail on any test slower than TESTTIME_MAX seconds in a serial race 
 	@slow=$$(jq -r '$(SLOW_TESTS)' testtime.json) && [ -z "$$slow" ] || { echo "$$slow"; exit 1; }
 
 final: ## Run the delivery gates one after another on an idle machine
-	@for gate in fmtcheck nilaway race-repeat fuzz-final treecheck; do \
+	@for gate in fmtcheck ci nilaway race-repeat fuzz-final testtime treecheck; do \
 		$(MAKE) $$gate || exit 1; \
 	done
 

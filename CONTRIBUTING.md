@@ -46,11 +46,11 @@ make ci
 
 `make testtime` runs the tests one at a time under the race detector and fails on any test slower
 than `TESTTIME_MAX` seconds (10). `make final` runs the delivery gates one after another on an idle
-machine: `fmtcheck` (`gofmt -s`), `nilaway`, `race-repeat` (`-race -count=10 -shuffle=on`),
-`fuzz-final` (every fuzz target for 60 s) and `treecheck`, which after `make clean` fails on an
-artefact, an untracked file of no source kind, a file under `testdata/fuzz` (a crasher is an
-`f.Add` seed of its target), an empty directory, a file not stored with LF, or a `.gitattributes`
-without `* text=auto eol=lf`.
+machine: `fmtcheck` (`gofmt -s`), `ci`, `nilaway`, `race-repeat` (`-race -count=10 -shuffle=on`),
+`fuzz-final` (every fuzz target for 60 s), `testtime` and `treecheck`, which after `make clean`
+fails on an artefact, an untracked file of no source kind, a file under `testdata/fuzz` (a crasher
+is an `f.Add` seed of its target), an empty directory, a file not stored with LF, or a
+`.gitattributes` without `* text=auto eol=lf`.
 
 `make help` lists every target. The fuzz workflow runs every fuzz target weekly, reading the list
 through `make fuzz-list`, which asks `go test -list '^Fuzz'` for every `Fuzz` function of the module
