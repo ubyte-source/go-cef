@@ -64,8 +64,8 @@ func escapeAt[T Text](dst []byte, s T, start, j int, class byte) (out []byte, fr
 // little-endian word.
 func textWord[T Text](s T) uint64 {
 	b := s[:scanBytes]
-	return uint64(b[0]) | uint64(b[1])<<lane1 | uint64(b[2])<<lane2 | uint64(b[3])<<lane3 |
-		uint64(b[4])<<lane4 | uint64(b[5])<<lane5 | uint64(b[6])<<lane6 | uint64(b[7])<<lane7
+	return uint64(b[0]) | uint64(b[1])<<lane1 | uint64(b[2])<<lane2 | uint64(b[byte3])<<lane3 |
+		uint64(b[byte4])<<lane4 | uint64(b[byte5])<<lane5 | uint64(b[byte6])<<lane6 | uint64(b[byte7])<<lane7
 }
 
 // escapeLanes returns laneHigh's bit in each byte of w that is a backslash, sep or a

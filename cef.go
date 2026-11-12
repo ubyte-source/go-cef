@@ -189,6 +189,15 @@ const (
 	lane7 = 56
 )
 
+// Positions of the fourth to the eighth byte of a word.
+const (
+	byte3 = 3
+	byte4 = 4
+	byte5 = 5
+	byte6 = 6
+	byte7 = 7
+)
+
 // Lanes of a scan word, the scanBytes input bytes a uint64 holds: laneOnes has 1 in
 // each byte, laneLow7 its seven low bits and laneHigh its high bit.
 const (
@@ -207,7 +216,7 @@ func zeroLanes(w uint64) uint64 { return ^((w&laneLow7 + laneLow7) | w) & laneHi
 func keyPack[T Text](key T) uint32 {
 	if len(key) >= wordLen {
 		return uint32(key[0]) | uint32(key[1])<<lane1 | uint32(key[2])<<lane2 |
-			uint32(key[3])<<lane3
+			uint32(key[byte3])<<lane3
 	}
 	var pack uint32
 	for i := len(key) - 1; i >= 0; i-- {
